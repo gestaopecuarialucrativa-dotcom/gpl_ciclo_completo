@@ -117,6 +117,26 @@ input:focus,select:focus{outline:none;border-color:var(--v3);}
 .li-n{font-weight:800;font-size:14px;} .li-s{font-size:12px;color:var(--mut);}
 .li-x{margin-left:auto;background:none;border:1px solid #ffcdd2;color:var(--err);border-radius:8px;padding:5px 9px;font-size:12px;font-weight:700;}
 .ok-msg{display:none;background:#e3f2e4;color:var(--v1);font-weight:800;text-align:center;border-radius:12px;padding:11px;margin-top:10px;}
+.err-msg{display:none;background:#fdecea;color:var(--err);font-weight:700;font-size:13px;text-align:center;border-radius:12px;padding:10px;margin-top:8px;}
+.voltar{display:inline-flex;align-items:center;gap:6px;color:var(--v2);font-weight:800;font-size:14px;background:none;border:none;padding:4px 0;margin-bottom:10px;cursor:pointer;}
+.grp3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;}
+.opt{border:1.5px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center;font-size:12px;font-weight:700;color:var(--mut);background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;}
+.opt.sel{border-color:var(--v2);color:var(--v1);background:#f0f7f0;}
+.rec-box{background:#fffde7;border:1px solid #f0e6a0;border-radius:12px;padding:10px 12px;font-size:13px;margin-top:8px;color:#5d4f00;display:none;}
+.pan-bloco{background:#fff;border:0.5px solid var(--line);border-left:4px solid var(--v2);border-radius:0;padding:14px;margin-bottom:12px;}
+.pan-bloco.amarelo{border-left-color:var(--amar);}
+.pan-tt{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.pan-tt span{font-size:15px;font-weight:800;color:var(--txt);}
+.pan-badge{margin-left:auto;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;}
+.pan-badge.am{background:#FAEEDA;color:#854F0B;} .pan-badge.vd{background:#EAF3DE;color:#27500A;} .pan-badge.gz{background:#f1efe8;color:#5f6f61;}
+.lan-row{display:flex;align-items:center;padding:9px 0;border-top:0.5px solid var(--line);}
+.lan-row .lt{flex:1;} .lan-row .ln{font-size:14px;font-weight:700;} .lan-row .ld{font-size:12px;color:var(--mut);}
+.lan-row .lh{font-size:12px;color:var(--mut);margin-right:10px;}
+.lan-aprov{font-size:12px;font-weight:700;color:var(--v2);border:0.5px solid var(--v2);border-radius:8px;padding:5px 10px;background:none;cursor:pointer;}
+.lan-rej{font-size:12px;color:#993c1d;border:0.5px solid #f0997b;border-radius:8px;padding:5px 10px;background:none;cursor:pointer;margin-left:6px;}
+.eq-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:0.5px solid var(--line);}
+.eq-av{width:34px;height:34px;border-radius:50%;background:#e8f0e9;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--v2);flex:none;font-size:15px;}
+.eq-n{font-size:14px;font-weight:700;} .eq-s{font-size:12px;color:var(--mut);}
 </style>
 </head>
 <body>
@@ -174,8 +194,65 @@ input:focus,select:focus{outline:none;border-color:var(--v3);}
 
   <!-- ---- SHELL VAQUEIRO ---- -->
   <div id="shell-vaqueiro" class="hide">
-    <div class="vq-ola">Olá, <b id="vq-nome"></b>. O que vamos lançar?</div>
-    <div class="vq-grid" id="vq-grid"></div>
+    <div id="vq-home">
+      <div class="vq-ola">Olá, <b id="vq-nome"></b>. O que vamos lançar?</div>
+      <div class="vq-grid" id="vq-grid"></div>
+      <div style="margin:14px;background:#fff;border:0.5px solid var(--line);border-radius:12px;overflow:hidden;">
+        <div style="padding:10px 14px;border-bottom:0.5px solid var(--line);font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.07em;">Últimos lançamentos do dia</div>
+        <div id="vq-ultimos"><div style="padding:12px 14px;font-size:13px;color:var(--mut);text-align:center;">Nenhum lançamento hoje.</div></div>
+      </div>
+    </div>
+    <!-- TRATO DE COCHO -->
+    <div id="vq-trato" class="hide" style="padding:14px;">
+      <button class="voltar" onclick="vqHome()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Voltar
+      </button>
+      <div style="font-size:18px;font-weight:800;color:var(--v1);">Trato de Cocho</div>
+      <div style="font-size:13px;color:var(--mut);margin-bottom:12px;" id="tr-sub">Safra 2026/2027</div>
+      <div class="card">
+        <div class="row2"><div><label>Data</label><input id="tr-data" type="date"></div><div><label>Lote</label><select id="tr-lote"><option value="">Selecione...</option></select></div></div>
+        <label>Produto</label>
+        <select id="tr-prod"><option value="">Selecione o produto...</option></select>
+        <label>Quantidade (sacos de 30 kg)</label>
+        <input id="tr-qtd" inputmode="decimal" placeholder="Ex.: 2,5" oninput="trCalcRec()">
+        <div class="rec-box" id="tr-rec"></div>
+        <label>Situação do cocho</label>
+        <div class="grp3" id="tr-cocho">
+          <div class="opt" onclick="selOpt(this,'tr-cocho')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-2 8H5z"/></svg>Vazio</div>
+          <div class="opt" onclick="selOpt(this,'tr-cocho')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-2 8H5z"/><line x1="6" y1="14" x2="18" y2="14"/></svg>Baixo</div>
+          <div class="opt" onclick="selOpt(this,'tr-cocho')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-2 8H5z"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="6" y1="15" x2="18" y2="15"/></svg>Médio</div>
+        </div>
+        <label>Observação</label>
+        <input id="tr-obs" placeholder="Opcional">
+        <button class="btn" onclick="envTrato()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14L21 3"/><path d="M21 3l-6.5 18-3.5-7-7-3.5z"/></svg>Enviar trato
+        </button>
+        <div class="ok-msg" id="ok-tr">Trato enviado</div>
+        <div class="err-msg" id="err-tr"></div>
+      </div>
+    </div>
+    <!-- MUDA DE PASTO -->
+    <div id="vq-muda" class="hide" style="padding:14px;">
+      <button class="voltar" onclick="vqHome()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Voltar
+      </button>
+      <div style="font-size:18px;font-weight:800;color:var(--v1);">Muda de Pasto</div>
+      <div style="font-size:13px;color:var(--mut);margin-bottom:12px;">Safra 2026/2027</div>
+      <div class="card">
+        <div class="row2"><div><label>Data</label><input id="mu-data" type="date"></div><div><label>Lote</label><select id="mu-lote"><option value="">Selecione...</option></select></div></div>
+        <label>Área / Piquete de origem</label>
+        <input id="mu-orig" placeholder="Ex.: P08 ou Módulo 01/Piquete 02">
+        <label>Área / Piquete de destino</label>
+        <input id="mu-dest" placeholder="Ex.: P09 ou Módulo 01/Piquete 03">
+        <label>Observação</label>
+        <input id="mu-obs" placeholder="Opcional">
+        <button class="btn" onclick="envMuda()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h14"/><path d="M13 8l4 4-4 4"/><path d="M21 5v14"/></svg>Confirmar mudança
+        </button>
+        <div class="ok-msg" id="ok-mu">Muda registrada</div>
+        <div class="err-msg" id="err-mu"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ---- SHELL GESTÃO (consultor/dono) ---- -->
@@ -385,19 +462,195 @@ function navGestao(id){
 var NOMES_MOD={muda:'Muda de Pasto',trato:'Trato de Cocho',pesagem:'Pesagem',sanidade:'Sanidade',bezerro:'Bezerros RN',escore:'Escore Corporal',
   painel:'Painel',matriz:'Matrizes',recria:'Recria / Engorda',touro:'Touros',piquete:'Piquetes',financeiro:'Financeiro',mapa:'Mapa da Fazenda',usuarios:'Usuários e Fazendas'};
 
+var LOTES_PADRAO=[]; // populado pelo boot da nuvem
+var PRODS_PADRAO=[ // editável pelo consultor em Usuários e Fazendas
+  {nome:'Sal mineral', pct:0, saco:30},
+  {nome:'Suplemento proteico', pct:0.1, saco:30},
+  {nome:'Ração concentrada', pct:0.3, saco:30}
+];
+function hojeISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function numBR(v){var n=parseFloat(String(v).replace(/\./g,'').replace(',','.')); return isNaN(n)?parseFloat(String(v).replace(',','.'))||0:n;}
+function lotesOpts(){return LOTES_PADRAO.map(function(l){return '<option>'+l+'</option>';}).join('');}
+
+/* ---- VAQUEIRO: navegação entre sub-telas ---- */
+function vqHome(){
+  document.getElementById('vq-home').classList.remove('hide');
+  document.getElementById('vq-trato').classList.add('hide');
+  document.getElementById('vq-muda').classList.add('hide');
+}
+function abrirModulo(id){
+  if(id==='trato'){ abrirTratoVQ(); return; }
+  if(id==='muda'){  abrirMudaVQ();  return; }
+  alert('Módulo "'+(NOMES_MOD[id]||id)+'" será adicionado em breve.');
+}
+function abrirTratoVQ(){
+  document.getElementById('vq-home').classList.add('hide');
+  document.getElementById('vq-muda').classList.add('hide');
+  document.getElementById('vq-trato').classList.remove('hide');
+  document.getElementById('tr-data').value=hojeISO();
+  var s=document.getElementById('tr-lote'); s.innerHTML='<option value="">Selecione o lote...</option>'+lotesOpts();
+  var p=document.getElementById('tr-prod'); p.innerHTML='<option value="">Selecione o produto...</option>'+PRODS_PADRAO.map(function(pr){return '<option value="'+pr.pct+'|'+pr.saco+'">'+pr.nome+'</option>';}).join('');
+  document.getElementById('tr-qtd').value=''; document.getElementById('tr-obs').value='';
+  document.getElementById('tr-rec').style.display='none';
+  document.querySelectorAll('#vq-trato .opt').forEach(function(o){o.classList.remove('sel');});
+  document.getElementById('ok-tr').style.display='none'; document.getElementById('err-tr').style.display='none';
+}
+function abrirMudaVQ(){
+  document.getElementById('vq-home').classList.add('hide');
+  document.getElementById('vq-trato').classList.add('hide');
+  document.getElementById('vq-muda').classList.remove('hide');
+  document.getElementById('mu-data').value=hojeISO();
+  var s=document.getElementById('mu-lote'); s.innerHTML='<option value="">Selecione o lote...</option>'+lotesOpts();
+  document.getElementById('mu-orig').value=''; document.getElementById('mu-dest').value=''; document.getElementById('mu-obs').value='';
+  document.getElementById('ok-mu').style.display='none'; document.getElementById('err-mu').style.display='none';
+}
+function selOpt(el,grpId){
+  el.closest('.grp3').querySelectorAll('.opt').forEach(function(o){o.classList.remove('sel');});
+  el.classList.add('sel');
+}
+function trCalcRec(){
+  var sel=document.getElementById('tr-prod').value;
+  var qtd=numBR(document.getElementById('tr-qtd').value);
+  if(!sel||!qtd){document.getElementById('tr-rec').style.display='none';return;}
+  var parts=sel.split('|'); var pct=parseFloat(parts[0]); var kg30=parseInt(parts[1])||30;
+  if(!pct){document.getElementById('tr-rec').style.display='none';return;}
+  document.getElementById('tr-rec').innerHTML='Quantidade em kg: <b>'+(qtd*kg30).toFixed(1)+' kg</b>.';
+  document.getElementById('tr-rec').style.display='block';
+}
+function cochSel(){var o=document.querySelector('#tr-cocho .opt.sel'); return o?o.textContent.trim():'';}
+function envTrato(){
+  var err=document.getElementById('err-tr');
+  err.style.display='none';
+  var lote=document.getElementById('tr-lote').value;
+  var prod=document.getElementById('tr-prod'); var prodNome=prod.options[prod.selectedIndex]?prod.options[prod.selectedIndex].text:'';
+  var qtd=numBR(document.getElementById('tr-qtd').value);
+  if(!lote){err.textContent='Selecione o lote.';err.style.display='block';return;}
+  if(!prodNome||prodNome==='Selecione o produto...'){err.textContent='Selecione o produto.';err.style.display='block';return;}
+  if(qtd<=0){err.textContent='Informe a quantidade em sacos.';err.style.display='block';return;}
+  var reg={action:'trato',faz:FAZ_ATUAL,n:CU.nome,dt:document.getElementById('tr-data').value,lote:lote,prod:prodNome,qtd:qtd,kg:qtd*30,sit:cochSel(),obs:document.getElementById('tr-obs').value.trim(),ts:new Date().toISOString()};
+  nuvem(reg);
+  addUlt(reg);
+  document.getElementById('ok-tr').style.display='block';
+  setTimeout(function(){document.getElementById('ok-tr').style.display='none';vqHome();},1400);
+}
+function envMuda(){
+  var err=document.getElementById('err-mu');
+  err.style.display='none';
+  var lote=document.getElementById('mu-lote').value;
+  var orig=document.getElementById('mu-orig').value.trim();
+  var dest=document.getElementById('mu-dest').value.trim();
+  if(!lote){err.textContent='Selecione o lote.';err.style.display='block';return;}
+  if(!orig||!dest){err.textContent='Informe a origem e o destino.';err.style.display='block';return;}
+  var reg={action:'mudanca',faz:FAZ_ATUAL,n:CU.nome,dt:document.getElementById('mu-data').value,lote:lote,origem:orig,destino:dest,obs:document.getElementById('mu-obs').value.trim(),ts:new Date().toISOString()};
+  nuvem(reg);
+  addUlt(reg);
+  document.getElementById('ok-mu').style.display='block';
+  setTimeout(function(){document.getElementById('ok-mu').style.display='none';vqHome();},1400);
+}
+var _ult=[];
+function addUlt(r){
+  var hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  _ult.unshift({tipo:r.action,lote:r.lote,det:r.action==='trato'?r.qtd+' sacos · '+r.prod:r.origem+' → '+r.dest||r.destino,hora:hora,status:'Enviando'});
+  renderUlt();
+}
+function renderUlt(){
+  var el=document.getElementById('vq-ultimos'); if(!el)return;
+  if(!_ult.length){el.innerHTML='<div style="padding:12px 14px;font-size:13px;color:var(--mut);text-align:center;">Nenhum lançamento hoje.</div>';return;}
+  el.innerHTML=_ult.slice(0,5).map(function(u){
+    var cor=u.status==='Enviando'?'background:#FAEEDA;color:#854F0B':'background:#EAF3DE;color:#27500A';
+    return '<div style="display:flex;align-items:center;padding:10px 14px;border-top:0.5px solid var(--line);">'
+      +'<div style="flex:1;"><div style="font-size:13px;font-weight:700;">'+(u.tipo==='trato'?'Trato':'Muda de pasto')+' — '+u.lote+'</div><div style="font-size:12px;color:var(--mut);">'+u.det+'</div></div>'
+      +'<div style="text-align:right;"><div style="font-size:12px;color:var(--mut);margin-bottom:3px;">'+u.hora+'</div>'
+      +'<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;'+cor+'">'+u.status+'</span></div></div>';
+  }).join('');
+}
+
+/* ---- PAINEL (Central do Dia) ---- */
+function renderPainel(){
+  var hoje=hojeISO();
+  var db=DB.fazendas[FAZ_ATUAL]||{};
+  var lans=(db.lancamentos||[]).filter(function(r){return r.dt===hoje&&!r._apagado;}).sort(function(a,b){return b.ts>a.ts?1:-1;});
+  var pend=lans.filter(function(r){return !r._aprov;});
+  var users=db.usuarios||[];
+  var h='<div class="pg-tt">Central do dia</div><div class="pg-sub">'+FAZ_ATUAL+' · '+new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})+'</div>';
+  // Bloco atenção
+  h+='<div class="pan-bloco amarelo"><div class="pan-tt">'
+    +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#854F0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+    +'<span>Precisa da sua atenção</span>'
+    +(pend.length?'<span class="pan-badge am">'+pend.length+' pendente'+(pend.length>1?'s':'')+'</span>':'<span class="pan-badge vd">Em dia</span>')
+    +'</div>';
+  if(pend.length){
+    pend.slice(0,5).forEach(function(r,i){
+      var tt=r.action==='trato'?'Trato — '+r.lote:'Muda de pasto — '+r.lote;
+      var det=r.action==='trato'?r.qtd+' sacos · '+r.prod:r.origem+' → '+(r.destino||r.dest);
+      h+='<div class="lan-row"><div class="lt"><div class="ln">'+tt+'</div><div class="ld">'+det+' · '+r.n+'</div></div>'
+        +'<button class="lan-aprov" onclick="aprov(\''+r.ts+'\')">Aprovar</button>'
+        +'<button class="lan-rej"   onclick="rejeit(\''+r.ts+'\')">Rejeitar</button></div>';
+    });
+  } else {
+    h+='<div style="font-size:13px;color:var(--mut);padding:8px 0;">Nenhum lançamento aguardando aprovação.</div>';
+  }
+  h+='</div>';
+  // Bloco lançado hoje
+  h+='<div class="pan-bloco"><div class="pan-tt">'
+    +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--v2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+    +'<span>Lançado hoje</span><span class="pan-badge gz">'+lans.length+'</span></div>';
+  if(lans.length){
+    lans.slice(0,8).forEach(function(r){
+      var tt=r.action==='trato'?'Trato — '+r.lote:'Muda — '+r.lote;
+      var det=r.action==='trato'?r.qtd+' sacos':r.origem+' → '+(r.destino||r.dest);
+      var hora=r.ts?new Date(r.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'--:--';
+      var cor=r._aprov?'background:#EAF3DE;color:#27500A':'background:#FAEEDA;color:#854F0B';
+      h+='<div class="lan-row"><div class="lt"><div class="ln">'+tt+'</div><div class="ld">'+det+'</div></div>'
+        +'<span class="lh">'+hora+'</span>'
+        +'<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;'+cor+'">'+(r._aprov?'Aprovado':'Pendente')+'</span></div>';
+    });
+  } else {
+    h+='<div style="font-size:13px;color:var(--mut);padding:8px 0;">Nenhum lançamento hoje.</div>';
+  }
+  h+='</div>';
+  // Equipe
+  h+='<div class="pan-bloco"><div class="pan-tt">'
+    +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--v2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5"/><path d="M16 5.5a3 3 0 0 1 0 5.5"/><path d="M18 20c0-2-.8-3.5-2-4.3"/></svg>'
+    +'<span>Equipe em campo hoje</span></div>';
+  var vaqueiros=users.filter(function(u){return u.funcao==='Vaqueiro';});
+  if(vaqueiros.length){
+    vaqueiros.forEach(function(u){
+      var count=lans.filter(function(r){return r.n===u.nome;}).length;
+      var ativo=count>0;
+      h+='<div class="eq-row"><div class="eq-av">'+u.nome.charAt(0).toUpperCase()+'</div>'
+        +'<div style="flex:1;"><div class="eq-n">'+u.nome+'</div><div class="eq-s">'+(ativo?count+' lançamento'+(count>1?'s':''):'Sem lançamento hoje')+'</div></div>'
+        +'<span class="pan-badge '+(ativo?'vd':'gz')+'">'+(ativo?'Ativo':'Inativo')+'</span></div>';
+    });
+  } else {
+    h+='<div style="font-size:13px;color:var(--mut);padding:8px 0;">Nenhum vaqueiro cadastrado.</div>';
+  }
+  h+='</div>';
+  return h;
+}
+function aprov(ts){
+  var db=DB.fazendas[FAZ_ATUAL]||{}; var lans=db.lancamentos||[];
+  lans.forEach(function(r){if(r.ts===ts) r._aprov=true;});
+  salvarDB(); navGestao('painel');
+  nuvem({action:'aprov',faz:FAZ_ATUAL,ts:ts,n:CU.nome});
+}
+function rejeit(ts){
+  if(!confirm('Rejeitar este lançamento?')) return;
+  var db=DB.fazendas[FAZ_ATUAL]||{}; var lans=db.lancamentos||[];
+  lans.forEach(function(r){if(r.ts===ts) r._apagado=true;});
+  salvarDB(); navGestao('painel');
+  nuvem({action:'rejeitar',faz:FAZ_ATUAL,ts:ts,n:CU.nome});
+}
 function conteudoModulo(id){
   if(id==='usuarios') return blocoUsuarios();
+  if(id==='painel')   return renderPainel();
   var nome=NOMES_MOD[id]||id;
   return '<div class="pg-tt">'+nome+'</div><div class="pg-sub">'+FAZ_ATUAL+'</div>'
     +'<div class="mod-vazio">'
-    +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>'
+    +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>'
     +'<b>Módulo pronto para ser ligado</b>'
     +'<span>Esta é a base do sistema. O módulo <b>'+nome+'</b> entra aqui na próxima etapa, já salvando na planilha.</span>'
     +'</div>';
-}
-/* Vaqueiro abre módulo (por enquanto avisa; formulários entram na próxima etapa) */
-function abrirModulo(id){
-  alert('Módulo "'+(NOMES_MOD[id]||id)+'" será ligado na próxima etapa. A base já reconhece você como '+CU.nome+' ('+CU.funcao+') na '+FAZ_ATUAL+'.');
 }
 
 /* ---- USUÁRIOS E FAZENDAS (funcional na base) ---- */
@@ -467,7 +720,16 @@ var FILA_KEY='gpl_sis_fila';
 function lerFila(){ try{return JSON.parse(localStorage.getItem(FILA_KEY)||'[]');}catch(e){return [];} }
 function guardarFila(reg){ var f=lerFila(); f.push(reg); localStorage.setItem(FILA_KEY,JSON.stringify(f)); }
 function nuvem(reg){
-  if(!API_URL){ attBadge(); return; } // sem backend configurado: fica só local
+  // salvar localmente antes (painel lê do DB local; não depende da nuvem)
+  if(reg.action==='trato'||reg.action==='mudanca'){
+    var faz=reg.faz||FAZ_ATUAL;
+    if(DB.fazendas[faz]){
+      if(!DB.fazendas[faz].lancamentos) DB.fazendas[faz].lancamentos=[];
+      DB.fazendas[faz].lancamentos.push(reg);
+      salvarDB();
+    }
+  }
+  if(!API_URL){ attBadge(); return; }
   fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(reg)})
     .then(function(r){return r.json();})
     .then(function(j){ if(!(j&&j.ok)) throw new Error('resp'); attBadge(); })
