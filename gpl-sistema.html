@@ -299,21 +299,14 @@ var DB_KEY='gpl_sis_db';
 var DB = carregarDB();
 var CU=null, FAZ_ATUAL=null, perfilSel=null, usrSel=null;
 
-var DB_VER=2;
+var DB_VER=3;
 function carregarDB(){
   try{ var d=JSON.parse(localStorage.getItem(DB_KEY)); if(d&&d.fazendas&&d.v===DB_VER) return d; }catch(e){}
-  /* Início limpo. A fazenda de teste é registrada na NUVEM de verdade ao entrar,
-     e não tem lançamento inventado — o que você lançar vai para a planilha dela. */
-  return { v:DB_VER, fazendas:{
-    'Fazenda Demonstração':{ lotes:['Lote 01','Lote 02','Lote 03','Lote 04','Lote 05','Lote 06'],
-      usuarios:[
-        {nome:'Rogério', funcao:'Consultor', pin:'1234'},
-        {nome:'Rafael',  funcao:'Dono',      pin:'5678'},
-        {nome:'Fábio',   funcao:'Vaqueiro',  pin:'1111'}
-      ], lancamentos:[] }
-  }};
+  /* Início 100% limpo: nenhuma fazenda de exemplo. Você cria tudo. */
+  return { v:DB_VER, ownerPin:'1234', fazendas:{} };
 }
 function salvarDB(){ localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
+function genId(p){ return (p||'ID')+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7); }
 
 /* ================= LOGIN ================= */
 var PERFIS=[
@@ -326,12 +319,7 @@ function montarFaz(){
   var nomes=Object.keys(DB.fazendas);
   s.innerHTML='<option value="">Selecionar fazenda...</option>'+nomes.map(function(n){return '<option>'+n+'</option>';}).join('');
 }
-function lgFaz(){
-  FAZ_ATUAL=document.getElementById('lg-faz').value;
-  perfilSel=null; usrSel=null;
-  document.getElementById('lg-pin').value='';
-  document.getElementById('lg-erro').style.display='none';
-  if(!FAZ_ATUAL){ document.getElementById('lg-apos-faz').classList.add('hide'); return; }
+function montarPerfis(){
   document.getElementById('lg-apos-faz').classList.remove('hide');
   var h='';
   PERFIS.forEach(function(p){
@@ -341,62 +329,88 @@ function lgFaz(){
       +'<span class="pcard-badge '+p.bcls+'">'+p.badge+'</span></div>';
   });
   document.getElementById('lg-perfis').innerHTML=h;
-  montarUsrLogin();
+  document.getElementById('lg-usr-box').classList.add('hide');
+}
+function lgFaz(){
+  FAZ_ATUAL=document.getElementById('lg-faz').value;
+  usrSel=null;
+  if(perfilSel && perfilSel!=='Consultor') montarUsrLogin();
+  validarLogin();
 }
 function selPerfil(id,el){
   perfilSel=id; usrSel=null;
+  document.getElementById('lg-pin').value='';
+  document.getElementById('lg-erro').style.display='none';
   document.querySelectorAll('#lg-perfis .pcard').forEach(function(c){c.classList.remove('sel');});
   el.classList.add('sel');
-  montarUsrLogin();
+  if(id==='Consultor'){
+    // Consultor = acesso mestre. Não depende de fazenda nem de nuvem.
+    var box=document.getElementById('lg-usr-box'); box.classList.remove('hide');
+    document.getElementById('lg-usr-list').innerHTML=
+      '<div class="usr-item sel"><div class="usr-av">R</div>'
+      +'<div><div class="usr-n">Rogério</div><div class="usr-c">Consultor — acesso mestre</div></div></div>';
+    usrSel={owner:true};
+  } else {
+    montarUsrLogin();
+  }
   validarLogin();
 }
 function montarUsrLogin(){
   var box=document.getElementById('lg-usr-box');
   var lista=document.getElementById('lg-usr-list');
-  if(!perfilSel){ box.classList.add('hide'); return; }
-  var us=(DB.fazendas[FAZ_ATUAL].usuarios||[]).filter(function(u){return u.funcao===perfilSel;});
   box.classList.remove('hide');
+  if(!FAZ_ATUAL){ lista.innerHTML='<div class="lg-vazio">Selecione a fazenda acima.</div>'; return; }
+  var us=((DB.fazendas[FAZ_ATUAL]||{}).usuarios||[]).filter(function(u){return u.funcao===perfilSel;});
   if(!us.length){ lista.innerHTML='<div class="lg-vazio">Nenhum '+perfilSel+' cadastrado nesta fazenda.</div>'; return; }
   lista.innerHTML=us.map(function(u,i){
     return '<div class="usr-item" onclick="selUsr('+i+',this)">'
       +'<div class="usr-av">'+u.nome.charAt(0).toUpperCase()+'</div>'
-      +'<div><div class="usr-n">'+u.nome+'</div><div class="usr-c">'+u.funcao+'</div></div>'
-      +'</div>';
+      +'<div><div class="usr-n">'+u.nome+'</div><div class="usr-c">'+u.funcao+'</div></div></div>';
   }).join('');
 }
 function selUsr(i,el){
-  var us=(DB.fazendas[FAZ_ATUAL].usuarios||[]).filter(function(u){return u.funcao===perfilSel;});
+  var us=((DB.fazendas[FAZ_ATUAL]||{}).usuarios||[]).filter(function(u){return u.funcao===perfilSel;});
   usrSel=us[i];
   document.querySelectorAll('#lg-usr-list .usr-item').forEach(function(c){c.classList.remove('sel');});
   el.classList.add('sel');
   validarLogin();
 }
 function validarLogin(){
-  document.getElementById('lg-btn').disabled = !(perfilSel && usrSel);
+  var ok = (perfilSel==='Consultor') ? true : !!(FAZ_ATUAL && usrSel);
+  document.getElementById('lg-btn').disabled = !ok;
 }
 document.addEventListener('input',function(e){ if(e.target&&e.target.id==='lg-pin') validarLogin(); });
 function entrar(){
-  var erro=document.getElementById('lg-erro');
+  var erro=document.getElementById('lg-erro'); erro.style.display='none';
+  var pin=document.getElementById('lg-pin').value.trim();
+  if(perfilSel==='Consultor'){
+    if(pin!==DB.ownerPin){ erro.textContent='PIN do consultor incorreto.'; erro.style.display='block'; return; }
+    CU={id:'owner',nome:'Rogério',funcao:'Consultor'};
+    FAZ_ATUAL=document.getElementById('lg-faz').value||null;
+    abrirApp(); return;
+  }
+  if(!FAZ_ATUAL){ erro.textContent='Selecione a fazenda.'; erro.style.display='block'; return; }
   if(!usrSel){ erro.textContent='Escolha o usuário.'; erro.style.display='block'; return; }
-  if(document.getElementById('lg-pin').value.trim()!==usrSel.pin){ erro.textContent='PIN incorreto.'; erro.style.display='block'; return; }
-  CU=usrSel;
-  abrirApp();
+  if(pin!==usrSel.pin){ erro.textContent='PIN incorreto.'; erro.style.display='block'; return; }
+  CU=usrSel; abrirApp();
 }
 function sair(){
-  CU=null;
+  CU=null; FAZ_ATUAL=null; perfilSel=null; usrSel=null;
   document.getElementById('tela-app').style.display='none';
   document.getElementById('tela-login').style.display='flex';
   document.getElementById('lg-pin').value='';
+  document.getElementById('lg-erro').style.display='none';
+  montarFaz(); montarPerfis();
 }
 
 /* ================= ABRIR APP ================= */
 function abrirApp(){
   document.getElementById('tela-login').style.display='none';
   document.getElementById('tela-app').style.display='block';
-  document.getElementById('tb-faz').textContent=FAZ_ATUAL;
+  document.getElementById('tb-faz').textContent=FAZ_ATUAL||'Selecione a fazenda';
   document.getElementById('tb-usr').textContent=CU.nome+' — '+CU.funcao;
   attBadge();
-  carregarFaz();
+  if(FAZ_ATUAL) carregarFaz();
   if(CU.funcao==='Vaqueiro'){ abrirVaqueiro(); }
   else { abrirGestao(); }
 }
@@ -460,8 +474,15 @@ function abrirGestao(){
   document.getElementById('shell-vaqueiro').classList.add('hide');
   document.getElementById('btn-toggle').style.display='';
   var h='';
+  if(CU.funcao==='Consultor'){
+    var fs=Object.keys(DB.fazendas);
+    h+='<div class="side-sec">Fazenda ativa</div>';
+    h+='<div style="padding:2px 12px 10px"><select onchange="trocarFaz(this.value)" style="width:100%;padding:9px;border-radius:8px;border:none;font-size:13px;font-weight:700;background:rgba(255,255,255,.12);color:#fff">'
+      +'<option value="">— selecione —</option>'
+      +fs.map(function(f){return '<option'+(f===FAZ_ATUAL?' selected':'')+'>'+f+'</option>';}).join('')
+      +'</select></div>';
+  }
   MENU.forEach(function(g){
-    // Dono não vê config de usuários por padrão
     if(g.sec==='Config' && CU.funcao!=='Consultor') return;
     h+='<div class="side-sec">'+g.sec+'</div>';
     g.itens.forEach(function(it){
@@ -469,7 +490,13 @@ function abrirGestao(){
     });
   });
   document.getElementById('side').innerHTML=h;
-  navGestao('painel');
+  navGestao(FAZ_ATUAL?'painel':(CU.funcao==='Consultor'?'usuarios':'painel'));
+}
+function trocarFaz(f){
+  FAZ_ATUAL=f||null;
+  document.getElementById('tb-faz').textContent=FAZ_ATUAL||'Selecione a fazenda';
+  if(FAZ_ATUAL) carregarFaz();
+  navGestao(FAZ_ATUAL?'painel':'usuarios');
 }
 function navGestao(id){
   document.querySelectorAll('.side-item').forEach(function(m){m.classList.remove('on');});
@@ -552,7 +579,7 @@ function envTrato(){
   if(!lote){err.textContent='Selecione o lote.';err.style.display='block';return;}
   if(!prodNome||prodNome==='Selecione o produto...'){err.textContent='Selecione o produto.';err.style.display='block';return;}
   if(qtd<=0){err.textContent='Informe a quantidade em sacos.';err.style.display='block';return;}
-  var reg={action:'trato',id:'L'+Date.now()+Math.floor(Math.random()*1000),faz:FAZ_ATUAL,n:CU.nome,dt:document.getElementById('tr-data').value,lote:lote,prod:prodNome,qtd:qtd,kg:qtd*30,sit:cochSel(),obs:document.getElementById('tr-obs').value.trim(),ts:new Date().toISOString()};
+  var reg={action:'trato',id:genId('LAN'),faz:FAZ_ATUAL,n:CU.nome,dt:document.getElementById('tr-data').value,lote:lote,prod:prodNome,qtd:qtd,kg:qtd*30,sit:cochSel(),obs:document.getElementById('tr-obs').value.trim(),ts:new Date().toISOString()};
   nuvem(reg);
   addUlt(reg);
   document.getElementById('ok-tr').style.display='block';
@@ -566,7 +593,7 @@ function envMuda(){
   var dest=document.getElementById('mu-dest').value.trim();
   if(!lote){err.textContent='Selecione o lote.';err.style.display='block';return;}
   if(!orig||!dest){err.textContent='Informe a origem e o destino.';err.style.display='block';return;}
-  var reg={action:'mudanca',id:'L'+Date.now()+Math.floor(Math.random()*1000),faz:FAZ_ATUAL,n:CU.nome,dt:document.getElementById('mu-data').value,lote:lote,origem:orig,destino:dest,obs:document.getElementById('mu-obs').value.trim(),ts:new Date().toISOString()};
+  var reg={action:'mudanca',id:genId('LAN'),faz:FAZ_ATUAL,n:CU.nome,dt:document.getElementById('mu-data').value,lote:lote,origem:orig,destino:dest,obs:document.getElementById('mu-obs').value.trim(),ts:new Date().toISOString()};
   nuvem(reg);
   addUlt(reg);
   document.getElementById('ok-mu').style.display='block';
@@ -593,11 +620,11 @@ function renderUlt(){
 /* ---- PAINEL (Central do Dia) ---- */
 function registrarFazNaNuvem(faz){
   var f=DB.fazendas[faz]; if(!f||!API_URL) return;
-  fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'fazenda',nome:faz})})
+  fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'fazenda',id:f.id||'',nome:faz})})
     .then(function(r){return r.json();}).then(function(j){
       if(j&&j.ok&&j.slug){
         f.slug=j.slug; salvarDB();
-        (f.usuarios||[]).forEach(function(u){ nuvem({action:'usuario',fazenda:faz,nome:u.nome,funcao:u.funcao,pin:u.pin}); });
+        (f.usuarios||[]).forEach(function(u){ nuvem({action:'usuario',id:u.id||'',fazenda:faz,nome:u.nome,funcao:u.funcao,pin:u.pin}); });
         carregarFaz();
       }
     }).catch(function(){});
@@ -679,6 +706,11 @@ function rejeit(id){
 }
 function conteudoModulo(id){
   if(id==='usuarios') return blocoUsuarios();
+  if(!FAZ_ATUAL){
+    return '<div class="pg-tt">Selecione uma fazenda</div>'
+      +'<div class="mod-vazio"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/></svg>'
+      +'<b>Nenhuma fazenda ativa</b><span>Escolha uma fazenda no topo do menu, ou crie uma em <b>Usuários e Fazendas</b>.</span></div>';
+  }
   if(id==='painel')   return renderPainel();
   var nome=NOMES_MOD[id]||id;
   return '<div class="pg-tt">'+nome+'</div><div class="pg-sub">'+FAZ_ATUAL+'</div>'
@@ -726,21 +758,18 @@ function criarFaz(){
   var n=(document.getElementById('cf-nome').value||'').trim();
   if(!n){ alert('Digite o nome da fazenda.'); return; }
   if(DB.fazendas[n]){ alert('Já existe uma fazenda com esse nome.'); return; }
-  DB.fazendas[n]={usuarios:[]}; 
-  // o consultor que criou já entra como usuário da fazenda nova
-  if(CU && CU.funcao==='Consultor'){
-    DB.fazendas[n].usuarios.push({nome:CU.nome,funcao:'Consultor',pin:CU.pin});
-  }
+  DB.fazendas[n]={ id:genId('FAZ'), lotes:[], usuarios:[], lancamentos:[] };
   salvarDB();
   document.getElementById('cf-nome').value='';
   if(API_URL){
-    fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'fazenda',nome:n})})
+    fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'fazenda',id:DB.fazendas[n].id,nome:n})})
       .then(function(r){return r.json();}).then(function(j){
         if(j&&j.ok&&j.slug){ DB.fazendas[n].slug=j.slug; salvarDB(); }
-        if(CU && CU.funcao==='Consultor'){ nuvem({action:'usuario',fazenda:n,nome:CU.nome,funcao:'Consultor',pin:CU.pin}); }
         renderUsuarios();
-      }).catch(function(){ nuvem({action:'fazenda',nome:n}); });
+      }).catch(function(){ nuvem({action:'fazenda',id:DB.fazendas[n].id,nome:n}); });
   }
+  FAZ_ATUAL=n; // já deixa a nova fazenda ativa
+  document.getElementById('tb-faz').textContent=n;
   renderUsuarios();
 }
 function criarUsr(){
@@ -749,9 +778,10 @@ function criarUsr(){
   var func=document.getElementById('cu-func').value;
   var pin=(document.getElementById('cu-pin').value||'').trim();
   if(!faz||!nome||pin.length!==4){ alert('Preencha nome e PIN de 4 dígitos.'); return; }
-  DB.fazendas[faz].usuarios.push({nome:nome,funcao:func,pin:pin}); salvarDB();
+  var uid=genId('USR');
+  DB.fazendas[faz].usuarios.push({id:uid,nome:nome,funcao:func,pin:pin}); salvarDB();
   document.getElementById('cu-nome').value=''; document.getElementById('cu-pin').value='';
-  nuvem({action:'usuario', fazenda:faz, nome:nome, funcao:func, pin:pin});
+  nuvem({action:'usuario', id:uid, fazenda:faz, nome:nome, funcao:func, pin:pin});
   var ok=document.getElementById('ok-usr'); ok.style.display='block'; setTimeout(function(){ok.style.display='none';},1400);
   renderUsuarios();
 }
@@ -799,6 +829,7 @@ function bootNuvem(){
       Object.keys(j.fazendas).forEach(function(f){
         if(!DB.fazendas[f]) DB.fazendas[f]={usuarios:[]};
         if(j.fazendas[f].slug) DB.fazendas[f].slug=j.fazendas[f].slug;
+        if(j.fazendas[f].id) DB.fazendas[f].id=j.fazendas[f].id;
         (j.fazendas[f].usuarios||[]).forEach(function(cu){
           var ex=null;
           DB.fazendas[f].usuarios.forEach(function(u){ if(u.nome===cu.nome&&u.funcao===cu.funcao) ex=u; });
@@ -828,6 +859,7 @@ var LOGO='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWgAAACKCAYAAACHHtDoAADo
 document.getElementById('lg-logo-img').src=LOGO;
 document.getElementById('tb-logo').src=LOGO;
 montarFaz();
+montarPerfis();
 bootNuvem();
 </script>
 </body>
