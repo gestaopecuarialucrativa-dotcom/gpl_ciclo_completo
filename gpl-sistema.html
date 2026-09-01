@@ -420,13 +420,20 @@ function abrirApp(){
 function carregarFaz(){
   if(!API_URL) return;
   var f=DB.fazendas[FAZ_ATUAL]||{};
-  if(!f.slug){ registrarFazNaNuvem(FAZ_ATUAL); return; } // ainda não está na nuvem
-  var chave=f.slug;
-  fetch(API_URL+'?action=boot&faz='+encodeURIComponent(chave)).then(function(r){return r.json();}).then(function(j){
+  if(!f.slug){ registrarFazNaNuvem(FAZ_ATUAL); return; }
+  fetch(API_URL+'?action=boot&faz='+encodeURIComponent(f.slug)).then(function(r){return r.json();}).then(function(j){
     if(j&&j.ok){
-      if(!DB.fazendas[FAZ_ATUAL]) DB.fazendas[FAZ_ATUAL]={usuarios:[]};
-      if(j.slug) DB.fazendas[FAZ_ATUAL].slug=j.slug;
-      DB.fazendas[FAZ_ATUAL].lancamentos=j.lancamentos||[];
+      var db=DB.fazendas[FAZ_ATUAL]; if(!db) return;
+      if(j.slug) db.slug=j.slug;
+      db.lancamentos=j.lancamentos||[];
+      db.matrizes=j.matrizes||[];
+      db.bezerros=j.bezerros||[];
+      db.recria=j.recria||[];
+      db.touros=j.touros||[];
+      db.pesagem=j.pesagem||[];
+      db.piquetes=j.piquetes||[];
+      db.sanidade=j.sanidade||[];
+      db.financeiro=j.financeiro||[];
       salvarDB();
       if(CU.funcao!=='Vaqueiro'){ var mi=document.getElementById('mi-painel'); if(mi&&mi.classList.contains('on')) navGestao('painel'); }
     }
@@ -637,7 +644,38 @@ function renderPainel(){
   var lans=(db.lancamentos||[]).filter(function(r){return r.dt===hoje&&!r._apagado;}).sort(function(a,b){return b.ts>a.ts?1:-1;});
   var pend=lans.filter(function(r){return !r._aprov;});
   var users=db.usuarios||[];
+  // Indicadores rebanho
+  var nMat=(db.matrizes||[]).filter(function(r){return !r._del&&r.situacao==='Ativo';}).length;
+  var nBez=(db.bezerros||[]).filter(function(r){return !r._del&&r.situacao!=='Morto';}).length;
+  var nRec=(db.recria||[]).filter(function(r){return !r._del;}).reduce(function(s,r){return s+(parseInt(r.qtd)||0);},0);
+  var nTou=(db.touros||[]).filter(function(r){return !r._del&&r.situacao==='Ativo';}).length;
+  // Financeiro do mês
+  var mes=hoje.slice(0,7);
+  var rec=(db.financeiro||[]).filter(function(r){return !r._del&&r.tipo==='Receita'&&(r.data||'').slice(0,7)===mes;}).reduce(function(s,r){return s+parseFloat((r.valor||'0').replace(',','.'));},0);
+  var desp=(db.financeiro||[]).filter(function(r){return !r._del&&r.tipo==='Despesa'&&(r.data||'').slice(0,7)===mes;}).reduce(function(s,r){return s+parseFloat((r.valor||'0').replace(',','.'));},0);
   var h='<div class="pg-tt">Central do dia</div><div class="pg-sub">'+FAZ_ATUAL+' · '+new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})+'</div>';
+  // Bloco indicadores rápidos
+  var cards=[
+    {ic:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="6" ry="4"/><path d="M6 8c0 4 12 4 12 0"/><path d="M6 12c0 4 12 4 12 0"/></svg>',label:'Matrizes Ativas',val:nMat,cor:'var(--v1)'},
+    {ic:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="4"/><path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>',label:'Bezerros',val:nBez,cor:'#1565C0'},
+    {ic:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',label:'Recria/Engorda',val:nRec,cor:'#6A1B9A'},
+    {ic:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',label:'Touros',val:nTou,cor:'#BF360C'}
+  ];
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">';
+  cards.forEach(function(c){
+    h+='<div style="background:var(--card);border-radius:12px;border-left:4px solid '+c.cor+';padding:12px 14px">'
+      +'<div style="display:flex;align-items:center;gap:6px;color:'+c.cor+';margin-bottom:4px">'+c.ic+'<span style="font-size:11px;font-weight:700">'+c.label+'</span></div>'
+      +'<div style="font-size:26px;font-weight:900;color:'+c.cor+'">'+c.val+'</div></div>';
+  });
+  h+='</div>';
+  // Financeiro do mês
+  h+='<div style="background:var(--card);border-radius:12px;border-left:4px solid #2E7D32;padding:12px 14px;margin-bottom:12px">'
+    +'<div style="font-weight:800;font-size:12px;color:var(--v1);margin-bottom:8px">Financeiro — '+new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'})+'</div>'
+    +'<div style="display:flex;gap:16px">'
+    +'<div><div style="font-size:11px;color:var(--mut)">Receitas</div><div style="font-size:18px;font-weight:900;color:#2E7D32">R$ '+rec.toFixed(2).replace('.',',')+'</div></div>'
+    +'<div><div style="font-size:11px;color:var(--mut)">Despesas</div><div style="font-size:18px;font-weight:900;color:#c62828">R$ '+desp.toFixed(2).replace('.',',')+'</div></div>'
+    +'<div><div style="font-size:11px;color:var(--mut)">Saldo</div><div style="font-size:18px;font-weight:900;color:'+(rec-desp>=0?'#2E7D32':'#c62828')+'">R$ '+(rec-desp).toFixed(2).replace('.',',')+'</div></div>'
+    +'</div></div>';
   // Bloco atenção
   h+='<div class="pan-bloco amarelo"><div class="pan-tt">'
     +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#854F0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
@@ -645,7 +683,7 @@ function renderPainel(){
     +(pend.length?'<span class="pan-badge am">'+pend.length+' pendente'+(pend.length>1?'s':'')+'</span>':'<span class="pan-badge vd">Em dia</span>')
     +'</div>';
   if(pend.length){
-    pend.slice(0,5).forEach(function(r,i){
+    pend.slice(0,5).forEach(function(r){
       var tt=r.action==='trato'?'Trato — '+r.lote:'Muda de pasto — '+r.lote;
       var det=r.action==='trato'?r.qtd+' sacos · '+r.prod:r.origem+' → '+(r.destino||r.dest);
       h+='<div class="lan-row"><div class="lt"><div class="ln">'+tt+'</div><div class="ld">'+det+' · '+r.n+'</div></div>'
@@ -656,7 +694,7 @@ function renderPainel(){
     h+='<div style="font-size:13px;color:var(--mut);padding:8px 0;">Nenhum lançamento aguardando aprovação.</div>';
   }
   h+='</div>';
-  // Bloco lançado hoje
+  // Lançado hoje
   h+='<div class="pan-bloco"><div class="pan-tt">'
     +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--v2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
     +'<span>Lançado hoje</span><span class="pan-badge gz">'+lans.length+'</span></div>';
@@ -711,16 +749,121 @@ function conteudoModulo(id){
   if(!FAZ_ATUAL){
     return '<div class="pg-tt">Selecione uma fazenda</div>'
       +'<div class="mod-vazio"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/></svg>'
-      +'<b>Nenhuma fazenda ativa</b><span>Escolha uma fazenda no topo do menu, ou crie uma em <b>Usuários e Fazendas</b>.</span></div>';
+      +'<b>Nenhuma fazenda ativa</b><span>Escolha uma fazenda no topo do menu ou crie uma em Usuários e Fazendas.</span></div>';
   }
-  if(id==='painel')   return renderPainel();
-  var nome=NOMES_MOD[id]||id;
-  return '<div class="pg-tt">'+nome+'</div><div class="pg-sub">'+FAZ_ATUAL+'</div>'
-    +'<div class="mod-vazio">'
-    +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>'
-    +'<b>Módulo pronto para ser ligado</b>'
-    +'<span>Esta é a base do sistema. O módulo <b>'+nome+'</b> entra aqui na próxima etapa, já salvando na planilha.</span>'
-    +'</div>';
+  if(id==='painel')    return renderPainel();
+  if(id==='matrizes')  return renderModLista('matrizes','Matrizes','matriz',
+    ['brinco','nome','raca','nascimento','categoria','situacao','obs'],
+    ['Brinco','Nome','Raça','Nascimento','Categoria','Situação','Obs']);
+  if(id==='bezerros')  return renderModLista('bezerros','Bezerros RN','bezerro',
+    ['brinco','mae','sexo','nascimento','peso_nasc','situacao','obs'],
+    ['Brinco','Mãe','Sexo','Nascimento','Peso Nasc.(kg)','Situação','Obs']);
+  if(id==='recria')    return renderModLista('recria','Recria / Engorda','lote_rec',
+    ['lote','categoria','qtd','peso_medio','data_entrada','meta_peso','obs'],
+    ['Lote','Categoria','Qtd','Peso Médio(kg)','Entrada','Meta Peso(kg)','Obs']);
+  if(id==='touros')    return renderModLista('touros','Touros','touro',
+    ['brinco','nome','raca','nascimento','peso','situacao','obs'],
+    ['Brinco','Nome','Raça','Nascimento','Peso(kg)','Situação','Obs']);
+  if(id==='pesagem')   return renderModLista('pesagem','Pesagem','pesagem',
+    ['data','lote','qtd','peso_total','gmd','obs'],
+    ['Data','Lote','Qtd','Peso Total(kg)','GMD(kg/dia)','Obs']);
+  if(id==='piquetes')  return renderModLista('piquetes','Piquetes','piquete',
+    ['nome','area','capacidade','forragem','situacao','obs'],
+    ['Nome','Área(ha)','Capacidade(UA)','Forragem','Situação','Obs']);
+  if(id==='sanidade')  return renderModLista('sanidade','Sanidade','sanidade',
+    ['data','lote','tipo','produto','dose','qtd_animais','obs'],
+    ['Data','Lote','Tipo','Produto','Dose','Qtd Animais','Obs']);
+  if(id==='financeiro') return renderModLista('financeiro','Financeiro','financeiro',
+    ['data','tipo','descricao','valor','categoria','obs'],
+    ['Data','Tipo','Descrição','Valor(R$)','Categoria','Obs']);
+  if(id==='mapa') return renderMapa();
+  return '<div class="pg-tt">'+(NOMES_MOD[id]||id)+'</div>';
+}
+
+/* ===== MÓDULO GENÉRICO DE LISTA ===== */
+function renderModLista(mod,titulo,tipo,campos,rotulos){
+  var db=DB.fazendas[FAZ_ATUAL]||{};
+  var itens=(db[mod]||[]).filter(function(r){return !r._del;});
+  var h='<div class="pg-tt">'+titulo+'</div><div class="pg-sub">'+FAZ_ATUAL+' · '+itens.length+' registro(s)</div>';
+  // Formulário
+  h+='<div class="card" id="form-'+mod+'">';
+  h+='<div style="font-weight:800;color:var(--v1);margin-bottom:8px;">Novo registro</div>';
+  campos.forEach(function(c,i){
+    var rot=rotulos[i];
+    if(c==='sexo'){
+      h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option>Macho</option><option>Fêmea</option></select>';
+    } else if(c==='situacao'){
+      h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option>Ativo</option><option>Vendido</option><option>Morto</option><option>Transferido</option></select>';
+    } else if(c==='categoria'){
+      h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option>Vaca</option><option>Novilha</option><option>Bezerra</option><option>Bezerro</option><option>Garrote</option><option>Novilho</option><option>Boi</option></select>';
+    } else if(c==='tipo' && mod==='financeiro'){
+      h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option>Receita</option><option>Despesa</option></select>';
+    } else if(c==='tipo' && mod==='sanidade'){
+      h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option>Vacina</option><option>Vermifugação</option><option>Carrapaticida</option><option>Antibiótico</option><option>Outro</option></select>';
+    } else if(c==='forragem'){
+      h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option>Brachiaria</option><option>Mombaça</option><option>Tifton</option><option>Andropogon</option><option>Outra</option></select>';
+    } else if(c==='nascimento'||c==='data'||c==='data_entrada'){
+      h+='<label>'+rot+'</label><input type="date" id="'+mod+'-'+c+'" value="'+hojeISO()+'">';
+    } else if(c==='obs'){
+      h+='<label>'+rot+'</label><input id="'+mod+'-'+c+'" placeholder="Observação (opcional)">';
+    } else {
+      h+='<label>'+rot+'</label><input id="'+mod+'-'+c+'" placeholder="'+rot+'">';
+    }
+  });
+  h+='<button class="btn" onclick="salvarMod(\''+mod+'\',\''+tipo+'\','+JSON.stringify(campos)+')">Salvar</button>';
+  h+='<div class="ok-msg" id="ok-'+mod+'">Salvo</div></div>';
+  // Lista
+  if(itens.length){
+    h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px;">Registros</div>';
+    h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+    h+='<tr style="background:var(--bg)">'+rotulos.map(function(r){return '<th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line)">'+r+'</th>';}).join('')+'<th></th></tr>';
+    itens.slice().reverse().slice(0,50).forEach(function(item){
+      h+='<tr style="border-bottom:1px solid var(--line)">'+campos.map(function(c){return '<td style="padding:5px 8px">'+(item[c]||'—')+'</td>';}).join('');
+      h+='<td style="padding:4px"><button onclick="delMod(\''+mod+'\',\''+item.id+'\')" style="background:none;border:none;color:var(--err);font-size:11px;cursor:pointer">Remover</button></td></tr>';
+    });
+    h+='</table></div></div>';
+  } else {
+    h+='<div class="mod-vazio"><b>Nenhum registro ainda.</b><span>Preencha o formulário acima para cadastrar o primeiro.</span></div>';
+  }
+  return h;
+}
+function salvarMod(mod,tipo,campos){
+  var db=DB.fazendas[FAZ_ATUAL]; if(!db) return;
+  if(!db[mod]) db[mod]=[];
+  var reg={id:genId(tipo.toUpperCase()),faz:FAZ_ATUAL,_ts:new Date().toISOString()};
+  campos.forEach(function(c){
+    var el=document.getElementById(mod+'-'+c); if(el) reg[c]=el.value||'';
+  });
+  db[mod].push(reg); salvarDB();
+  var ok=document.getElementById('ok-'+mod); if(ok){ok.style.display='block';setTimeout(function(){ok.style.display='none';},1400);}
+  nuvem({action:mod,faz:FAZ_ATUAL,dados:reg});
+  navGestao(mod==='bezerros'?'bezerros':mod==='recria'?'recria':mod==='touros'?'touros':mod==='pesagem'?'pesagem':mod==='piquetes'?'piquetes':mod==='sanidade'?'sanidade':mod==='financeiro'?'financeiro':mod);
+}
+function delMod(mod,id){
+  if(!confirm('Remover este registro?')) return;
+  var db=DB.fazendas[FAZ_ATUAL]; if(!db||!db[mod]) return;
+  db[mod].forEach(function(r){if(r.id===id) r._del=true;});
+  salvarDB();
+  nuvem({action:mod+'_del',faz:FAZ_ATUAL,id:id,n:CU.nome});
+  navGestao(mod);
+}
+/* ===== MAPA SIMPLES ===== */
+function renderMapa(){
+  var db=DB.fazendas[FAZ_ATUAL]||{};
+  var pqs=(db.piquetes||[]).filter(function(r){return !r._del;});
+  var h='<div class="pg-tt">Mapa da Fazenda</div><div class="pg-sub">'+FAZ_ATUAL+' · '+pqs.length+' piquete(s)</div>';
+  h+='<div class="card"><b style="color:var(--v1)">Piquetes cadastrados</b><br><br>';
+  if(!pqs.length){ h+='<div style="color:var(--mut);font-size:13px">Cadastre piquetes no módulo Piquetes para visualizá-los aqui.</div>'; }
+  else {
+    pqs.forEach(function(p){
+      var cor=p.situacao==='Ativo'?'#2E7D32':'#c62828';
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">'
+        +'<div style="width:14px;height:14px;border-radius:50%;background:'+cor+'"></div>'
+        +'<div><b>'+p.nome+'</b> <span style="color:var(--mut);font-size:12px">'+p.area+'ha · '+p.capacidade+' UA · '+p.forragem+'</span></div></div>';
+    });
+  }
+  h+='</div>';
+  return h;
 }
 
 /* ---- USUÁRIOS E FAZENDAS (funcional na base) ---- */
