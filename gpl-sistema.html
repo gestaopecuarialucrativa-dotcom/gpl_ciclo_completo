@@ -242,9 +242,9 @@ input:focus,select:focus{outline:none;border-color:var(--v3);}
       <div class="card">
         <div class="row2"><div><label>Data</label><input id="mu-data" type="date"></div><div><label>Lote</label><select id="mu-lote"><option value="">Selecione...</option></select></div></div>
         <label>Área / Piquete de origem</label>
-        <input id="mu-orig" placeholder="Ex.: P08 ou Módulo 01/Piquete 02">
+        <select id="mu-orig"><option value="">Selecione...</option></select>
         <label>Área / Piquete de destino</label>
-        <input id="mu-dest" placeholder="Ex.: P09 ou Módulo 01/Piquete 03">
+        <select id="mu-dest"><option value="">Selecione...</option></select>
         <label>Observação</label>
         <input id="mu-obs" placeholder="Opcional">
         <button class="btn" onclick="envMuda()">
@@ -538,8 +538,15 @@ function hojeISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function numBR(v){var n=parseFloat(String(v).replace(/\./g,'').replace(',','.')); return isNaN(n)?parseFloat(String(v).replace(',','.'))||0:n;}
 function lotesOpts(){
   var f=DB.fazendas[FAZ_ATUAL]||{};
-  var ls=(f.lotes&&f.lotes.length)?f.lotes:LOTES_PADRAO;
+  var ls=f.lotes||[];
+  if(!ls.length) return '<option value="">Sem lotes — cadastre em Config</option>';
   return ls.map(function(l){return '<option>'+l+'</option>';}).join('');
+}
+function piquetesOpts(){
+  var f=DB.fazendas[FAZ_ATUAL]||{};
+  var ps=(f.piquetes||[]).filter(function(p){return !p._del;});
+  if(!ps.length) return '<option value="">Sem piquetes — cadastre em Piquetes</option>';
+  return ps.map(function(p){return '<option>'+p.nome+'</option>';}).join('');
 }
 
 /* ---- VAQUEIRO: navegação entre sub-telas ---- */
@@ -571,6 +578,8 @@ function abrirMudaVQ(){
   document.getElementById('vq-muda').classList.remove('hide');
   document.getElementById('mu-data').value=hojeISO();
   var s=document.getElementById('mu-lote'); s.innerHTML='<option value="">Selecione o lote...</option>'+lotesOpts();
+  var so=document.getElementById('mu-orig'); so.innerHTML='<option value="">Selecione piquete de origem...</option>'+piquetesOpts();
+  var sd=document.getElementById('mu-dest'); sd.innerHTML='<option value="">Selecione piquete de destino...</option>'+piquetesOpts();
   document.getElementById('mu-orig').value=''; document.getElementById('mu-dest').value=''; document.getElementById('mu-obs').value='';
   document.getElementById('ok-mu').style.display='none'; document.getElementById('err-mu').style.display='none';
 }
@@ -765,8 +774,8 @@ function conteudoModulo(id){
   }
   if(id==='painel')    return renderPainel();
   if(id==='matrizes')  return renderModLista('matrizes','Matrizes','matriz',
-    ['brinco','nome','raca','nascimento','categoria','situacao','obs'],
-    ['Brinco','Nome','Raça','Nascimento','Categoria','Situação','Obs']);
+    ['brinco','nome','raca','nascimento','lote','categoria','situacao','obs'],
+    ['Brinco','Nome','Raça','Nascimento','Lote','Categoria','Situação','Obs']);
   if(id==='bezerros')  return renderModLista('bezerros','Bezerros RN','bezerro',
     ['brinco','mae','sexo','nascimento','peso_nasc','situacao','obs'],
     ['Brinco','Mãe','Sexo','Nascimento','Peso Nasc.(kg)','Situação','Obs']);
@@ -802,7 +811,11 @@ function renderModLista(mod,titulo,tipo,campos,rotulos){
   h+='<div style="font-weight:800;color:var(--v1);margin-bottom:8px;">Novo registro</div>';
   campos.forEach(function(c,i){
     var rot=rotulos[i];
-    if(c==='sexo'){
+    if(c==='lote'){
+      h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option value="">Selecione...</option>'+lotesOpts()+'</select>';
+    } else if(c==='piquete'||c==='origem'||c==='destino'){
+      h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option value="">Selecione...</option>'+piquetesOpts()+'</select>';
+    } else if(c==='sexo'){
       h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option>Macho</option><option>Fêmea</option></select>';
     } else if(c==='situacao'){
       h+='<label>'+rot+'</label><select id="'+mod+'-'+c+'"><option>Ativo</option><option>Vendido</option><option>Morto</option><option>Transferido</option></select>';
@@ -859,31 +872,124 @@ function delMod(mod,id){
   nuvem({action:mod+'_del',faz:FAZ_ATUAL,id:id,n:CU.nome});
   navGestao(mod);
 }
-/* ===== MAPA SIMPLES ===== */
+/* ===== MAPA ===== */
 function renderMapa(){
   var db=DB.fazendas[FAZ_ATUAL]||{};
-  var pqs=(db.piquetes||[]).filter(function(r){return !r._del;});
-  var h='<div class="pg-tt">Mapa da Fazenda</div><div class="pg-sub">'+FAZ_ATUAL+' · '+pqs.length+' piquete(s)</div>';
-  h+='<div class="card"><b style="color:var(--v1)">Piquetes cadastrados</b><br><br>';
-  if(!pqs.length){ h+='<div style="color:var(--mut);font-size:13px">Cadastre piquetes no módulo Piquetes para visualizá-los aqui.</div>'; }
-  else {
-    pqs.forEach(function(p){
-      var cor=p.situacao==='Ativo'?'#2E7D32':'#c62828';
-      h+='<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">'
-        +'<div style="width:14px;height:14px;border-radius:50%;background:'+cor+'"></div>'
-        +'<div><b>'+p.nome+'</b> <span style="color:var(--mut);font-size:12px">'+p.area+'ha · '+p.capacidade+' UA · '+p.forragem+'</span></div></div>';
+  var pqs=(db.piquetes||[]).filter(function(p){return !p._del;});
+  var pins=db.mapa_pins||[];
+  var fotoBase=db.mapa_foto||'';
+  var h='<div class="pg-tt">Mapa da Fazenda</div><div class="pg-sub">'+FAZ_ATUAL+' — foto + pinos de piquetes</div>';
+  // Upload de foto
+  h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Foto do mapa</div>';
+  if(fotoBase){
+    h+='<div style="position:relative;display:inline-block;width:100%;cursor:crosshair" id="mapa-wrap">'
+      +'<img id="mapa-img" src="'+fotoBase+'" style="width:100%;border-radius:10px;display:block" onclick="mapaClique(event)">'
+      +'<svg id="mapa-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 100 100" preserveAspectRatio="none">';
+    pins.forEach(function(p,i){
+      h+='<circle cx="'+p.x+'" cy="'+p.y+'" r="2.5" fill="'+(p.situacao==='Ativo'?'#2E7D32':'#c62828')+'" stroke="#fff" stroke-width="0.8"/>'
+        +'<text x="'+(p.x+3)+'" y="'+(p.y+1)+'" font-size="4" fill="#1B5E20" font-weight="bold">'+p.nome+'</text>';
     });
+    h+='</svg></div>';
+    h+='<div style="font-size:12px;color:var(--mut);margin-top:6px">Clique na foto para marcar um piquete.</div>';
+    h+='<button onclick="mapaLimparPins()" style="margin-top:8px;background:none;border:1px solid #c62828;color:#c62828;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Limpar todos os pinos</button> ';
+    h+='<button onclick="document.getElementById(\'mapa-up\').click()" style="margin-top:8px;background:none;border:1px solid var(--v2);color:var(--v2);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Trocar foto</button>';
+  } else {
+    h+='<div style="background:#f5faf5;border:2px dashed #c5e0c5;border-radius:12px;padding:30px;text-align:center;color:var(--mut)">'
+      +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
+      +'<div style="font-weight:700;color:var(--v1);margin:8px 0 4px">Nenhuma foto carregada</div>'
+      +'<div style="font-size:13px;margin-bottom:12px">Faça o upload de uma foto aérea ou croqui da fazenda</div>'
+      +'<button onclick="document.getElementById(\'mapa-up\').click()" class="btn" style="width:auto;padding:10px 24px">Carregar foto</button></div>';
   }
+  h+='<input type="file" id="mapa-up" accept="image/*" style="display:none" onchange="mapaUpload(event)">';
   h+='</div>';
+  // Pinos cadastrados
+  if(pins.length){
+    h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Piquetes marcados ('+pins.length+')</div>';
+    pins.forEach(function(p,i){
+      h+='<div class="lista-item"><div class="av" style="background:'+(p.situacao==='Ativo'?'#2E7D32':'#c62828')+'">'+p.nome.charAt(0)+'</div>'
+        +'<div><div class="li-n">'+p.nome+'</div><div class="li-s">'+p.situacao+' · x:'+Math.round(p.x)+'% y:'+Math.round(p.y)+'%</div></div>'
+        +'<button class="li-x" onclick="mapaDelPin('+i+')">Remover</button></div>';
+    });
+    h+='</div>';
+  }
+  // Alocação de lotes nos piquetes
+  var lotes=db.lotes||[];
+  var aloc=db.mapa_aloc||{};
+  if(pqs.length&&lotes.length){
+    h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Alocação de lotes</div>';
+    h+='<div style="font-size:13px;color:var(--mut);margin-bottom:10px">Qual lote está em qual piquete agora</div>';
+    pqs.forEach(function(p){
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        +'<div style="min-width:80px;font-weight:700;font-size:13px;color:var(--v1)">'+p.nome+'</div>'
+        +'<select onchange="mapaAloc(\''+p.nome.replace(/'/g,"\\'")+'\',this.value)" style="flex:1;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:13px">'
+        +'<option value="">— sem lote —</option>'
+        +lotes.map(function(l){return '<option'+(aloc[p.nome]===l?' selected':'')+'>'+l+'</option>';}).join('')
+        +'</select></div>';
+    });
+    h+='</div>';
+  }
   return h;
+}
+function mapaUpload(evt){
+  var file=evt.target.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    DB.fazendas[FAZ_ATUAL].mapa_foto=e.target.result;
+    DB.fazendas[FAZ_ATUAL].mapa_pins=[];
+    salvarDB(); navGestao('mapa');
+  };
+  reader.readAsDataURL(file);
+}
+function mapaClique(evt){
+  var img=document.getElementById('mapa-img');
+  var rect=img.getBoundingClientRect();
+  var x=((evt.clientX-rect.left)/rect.width*100).toFixed(1);
+  var y=((evt.clientY-rect.top)/rect.height*100).toFixed(1);
+  // escolher nome e status do piquete
+  var db=DB.fazendas[FAZ_ATUAL]||{};
+  var pqs=(db.piquetes||[]).filter(function(p){return !p._del;});
+  var opts=pqs.length?pqs.map(function(p){return p.nome;}).join('\n'):'';
+  var nome=prompt('Nome do piquete neste ponto:'+(opts?'\n(Cadastrados: '+opts+')':''));
+  if(!nome||!nome.trim()) return;
+  nome=nome.trim();
+  var sit=confirm('Piquete ATIVO? (OK=Ativo / Cancelar=Descansando)')?'Ativo':'Descansando';
+  if(!db.mapa_pins) db.mapa_pins=[];
+  db.mapa_pins.push({nome:nome,x:parseFloat(x),y:parseFloat(y),situacao:sit});
+  salvarDB();
+  nuvem({action:'mapa_pin',faz:FAZ_ATUAL,nome:nome,x:x,y:y,situacao:sit});
+  navGestao('mapa');
+}
+function mapaDelPin(i){
+  var db=DB.fazendas[FAZ_ATUAL]; if(!db||!db.mapa_pins) return;
+  db.mapa_pins.splice(i,1); salvarDB(); navGestao('mapa');
+}
+function mapaLimparPins(){
+  if(!confirm('Remover todos os pinos do mapa?')) return;
+  DB.fazendas[FAZ_ATUAL].mapa_pins=[]; salvarDB(); navGestao('mapa');
+}
+function mapaAloc(piquete,lote){
+  if(!DB.fazendas[FAZ_ATUAL].mapa_aloc) DB.fazendas[FAZ_ATUAL].mapa_aloc={};
+  if(lote) DB.fazendas[FAZ_ATUAL].mapa_aloc[piquete]=lote;
+  else delete DB.fazendas[FAZ_ATUAL].mapa_aloc[piquete];
+  salvarDB();
+  nuvem({action:'mapa_aloc',faz:FAZ_ATUAL,piquete:piquete,lote:lote});
 }
 
 /* ---- USUÁRIOS E FAZENDAS (funcional na base) ---- */
 function blocoUsuarios(){
-  return '<div class="pg-tt">Usuários e Fazendas</div><div class="pg-sub">Cadastre fazendas e quem acessa cada uma</div>'
+  return '<div class="pg-tt">Usuários e Fazendas</div><div class="pg-sub">Cadastre fazendas, lotes e quem acessa cada uma</div>'
   +'<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:4px;">Nova fazenda</div>'
   +'<label>Nome da fazenda</label><input id="cf-nome" placeholder="Ex.: Fazenda Boa Vista">'
   +'<button class="btn" onclick="criarFaz()">Criar fazenda</button></div>'
+  // LOTES
+  +'<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:4px;">Lotes de animais</div>'
+  +'<div class="pg-sub" style="margin-bottom:8px">Lote 01, Lote 02... aparecem no trato, pesagem, mudança de pasto e sanidade.</div>'
+  +'<label>Fazenda</label><select id="cl-faz"></select>'
+  +'<label>Nome do lote</label><input id="cl-nome" placeholder="Ex.: Lote 01">'
+  +'<button class="btn" onclick="criarLote()">Adicionar lote</button>'
+  +'<div class="ok-msg" id="ok-lote">Lote adicionado</div>'
+  +'<div id="lista-lotes"></div></div>'
+  // USUÁRIOS
   +'<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:4px;">Novo usuário</div>'
   +'<label>Fazenda</label><select id="cu-faz"></select>'
   +'<div class="row2"><div><label>Nome</label><input id="cu-nome" placeholder="Ex.: Fábio"></div>'
@@ -894,13 +1000,27 @@ function blocoUsuarios(){
   +'<div id="lista-usuarios"></div>';
 }
 function renderUsuarios(){
-  var selF=document.getElementById('cu-faz');
-  if(selF) selF.innerHTML=Object.keys(DB.fazendas).map(function(n){return '<option>'+n+'</option>';}).join('');
+  var opts=Object.keys(DB.fazendas).map(function(n){return '<option>'+n+'</option>';}).join('');
+  var selF=document.getElementById('cu-faz'); if(selF) selF.innerHTML=opts;
+  var selL=document.getElementById('cl-faz'); if(selL) selL.innerHTML=opts;
   var alvo=document.getElementById('lista-usuarios'); if(!alvo) return;
   var h='';
   Object.keys(DB.fazendas).forEach(function(faz){
-    h+='<div class="card" style="border-left-color:var(--v1)"><div style="font-weight:800;color:var(--v1);display:flex;align-items:center;gap:8px;margin-bottom:4px;">'+IC.mapa+' '+faz+'</div>';
-    var us=DB.fazendas[faz].usuarios||[];
+    var f=DB.fazendas[faz];
+    h+='<div class="card" style="border-left-color:var(--v1)"><div style="font-weight:800;color:var(--v1);display:flex;align-items:center;gap:8px;margin-bottom:8px;">'+IC.mapa+' '+faz+'</div>';
+    var ls=f.lotes||[];
+    h+='<div style="font-size:12px;font-weight:700;color:var(--mut);margin-bottom:4px">LOTES ('+ls.length+')</div>';
+    if(!ls.length){ h+='<div class="li-s" style="margin-bottom:8px">Nenhum lote cadastrado.</div>'; }
+    else{
+      h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
+      ls.forEach(function(l,i){
+        h+='<div style="background:#eef7ee;border:1px solid #c5e0c5;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:var(--v1);display:flex;align-items:center;gap:6px">'+l
+          +'<button onclick="delLote(\''+faz.replace(/'/g,"\\'")+'\','+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:14px;line-height:1;padding:0">×</button></div>';
+      });
+      h+='</div>';
+    }
+    var us=f.usuarios||[];
+    h+='<div style="font-size:12px;font-weight:700;color:var(--mut);margin-bottom:4px">USUÁRIOS ('+us.length+')</div>';
     if(!us.length){ h+='<div class="li-s">Nenhum usuário.</div>'; }
     us.forEach(function(u,i){
       h+='<div class="lista-item"><div class="av">'+u.nome.charAt(0).toUpperCase()+'</div>'
@@ -910,6 +1030,23 @@ function renderUsuarios(){
     h+='</div>';
   });
   alvo.innerHTML=h;
+}
+function criarLote(){
+  var faz=document.getElementById('cl-faz').value;
+  var nome=(document.getElementById('cl-nome').value||'').trim();
+  if(!faz||!nome){ alert('Escolha a fazenda e digite o nome do lote.'); return; }
+  if(!DB.fazendas[faz].lotes) DB.fazendas[faz].lotes=[];
+  if(DB.fazendas[faz].lotes.indexOf(nome)>=0){ alert('Este lote já existe.'); return; }
+  DB.fazendas[faz].lotes.push(nome); salvarDB();
+  document.getElementById('cl-nome').value='';
+  var ok=document.getElementById('ok-lote'); if(ok){ok.style.display='block';setTimeout(function(){ok.style.display='none';},1400);}
+  nuvem({action:'lote',fazenda:faz,nome:nome});
+  renderUsuarios();
+}
+function delLote(faz,i){
+  if(!confirm('Remover este lote?')) return;
+  DB.fazendas[faz].lotes.splice(i,1); salvarDB();
+  renderUsuarios();
 }
 function criarFaz(){
   var n=(document.getElementById('cf-nome').value||'').trim();
