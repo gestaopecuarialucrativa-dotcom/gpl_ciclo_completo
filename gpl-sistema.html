@@ -301,7 +301,7 @@ var DB = carregarDB();
 var CU=null, FAZ_ATUAL=null, perfilSel=null, usrSel=null;
 
 var DB_VER=4;
-var BUILD='v5';
+var BUILD='v6';
 function carregarDB(){
   try{ var d=JSON.parse(localStorage.getItem(DB_KEY)); if(d&&d.fazendas&&d.v===DB_VER) return d; }catch(e){}
   /* Início 100% limpo: nenhuma fazenda de exemplo. Você cria tudo. */
@@ -413,6 +413,7 @@ function abrirApp(){
   document.getElementById('tb-usr').textContent=CU.nome+' — '+CU.funcao;
   attBadge();
   if(FAZ_ATUAL) carregarFaz();
+  else setTimeout(_autoSelecionaFaz, 800); // aguarda bootNuvem trazer as fazendas
   if(CU.funcao==='Vaqueiro'){ abrirVaqueiro(); }
   else { abrirGestao(); }
 }
@@ -505,7 +506,15 @@ function trocarFaz(f){
   FAZ_ATUAL=f||null;
   document.getElementById('tb-faz').textContent=FAZ_ATUAL||'Selecione a fazenda';
   if(FAZ_ATUAL) carregarFaz();
+  // atualiza o select do menu para refletir a escolha
+  var sel=document.querySelector('#side select');
+  if(sel) sel.value=FAZ_ATUAL||'';
   navGestao(FAZ_ATUAL?'painel':'usuarios');
+}
+function _autoSelecionaFaz(){
+  // se só tem uma fazenda cadastrada, já ativa ela automaticamente
+  var fs=Object.keys(DB.fazendas);
+  if(fs.length===1 && !FAZ_ATUAL){ trocarFaz(fs[0]); }
 }
 function navGestao(id){
   document.querySelectorAll('.side-item').forEach(function(m){m.classList.remove('on');});
@@ -747,9 +756,12 @@ function rejeit(id){
 function conteudoModulo(id){
   if(id==='usuarios') return blocoUsuarios();
   if(!FAZ_ATUAL){
-    return '<div class="pg-tt">Selecione uma fazenda</div>'
-      +'<div class="mod-vazio"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/></svg>'
-      +'<b>Nenhuma fazenda ativa</b><span>Escolha uma fazenda no topo do menu ou crie uma em Usuários e Fazendas.</span></div>';
+    return '<div class="pg-tt" style="color:var(--v1)">Selecione a fazenda</div>'
+      +'<div style="background:#fff;border:2px solid var(--v3);border-radius:14px;padding:30px 20px;text-align:center;color:var(--mut);margin-top:12px">'
+      +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/></svg>'
+      +'<div style="font-weight:800;color:var(--v1);font-size:16px;margin:8px 0 4px">Nenhuma fazenda ativa</div>'
+      +'<div style="font-size:13px">Use o seletor <b>FAZENDA ATIVA</b> no menu lateral para escolher ou criar uma fazenda.</div>'
+      +'</div>';
   }
   if(id==='painel')    return renderPainel();
   if(id==='matrizes')  return renderModLista('matrizes','Matrizes','matriz',
@@ -984,7 +996,7 @@ function bootNuvem(){
           if(ex){ ex.pin=cu.pin; } else { DB.fazendas[f].usuarios.push({nome:cu.nome,funcao:cu.funcao,pin:cu.pin}); }
         });
       });
-      salvarDB(); montarFaz();
+      salvarDB(); montarFaz(); _autoSelecionaFaz();
     }
     tentarFila();
   }).catch(function(){ attBadge(); });
