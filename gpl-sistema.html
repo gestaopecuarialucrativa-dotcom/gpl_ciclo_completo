@@ -789,8 +789,8 @@ function conteudoModulo(id){
     ['data','lote','qtd','peso_total','gmd','obs'],
     ['Data','Lote','Qtd','Peso Total(kg)','GMD(kg/dia)','Obs']);
   if(id==='piquetes')  return renderModLista('piquetes','Piquetes','piquete',
-    ['nome','area','capacidade','forragem','situacao','obs'],
-    ['Nome','Área(ha)','Capacidade(UA)','Forragem','Situação','Obs']);
+    ['nome','modulo','area','capacidade','forragem','situacao','obs'],
+    ['Nome','Módulo','Área(ha)','Capacidade(UA)','Forragem','Situação','Obs']);
   if(id==='sanidade')  return renderModLista('sanidade','Sanidade','sanidade',
     ['data','lote','tipo','produto','dose','qtd_animais','obs'],
     ['Data','Lote','Tipo','Produto','Dose','Qtd Animais','Obs']);
@@ -873,26 +873,76 @@ function delMod(mod,id){
   navGestao(mod);
 }
 /* ===== MAPA ===== */
+var MAPA_CORES=['#2E7D32','#1565C0','#6A1B9A','#BF360C','#F57F17','#00695C','#37474F','#AD1457'];
+function mapaCorMod(modNome){
+  if(!modNome) return '#546E7A';
+  var db=DB.fazendas[FAZ_ATUAL]||{};
+  var mods=[...new Set((db.piquetes||[]).filter(function(p){return !p._del&&p.modulo;}).map(function(p){return p.modulo;}))].sort();
+  var i=mods.indexOf(modNome);
+  return MAPA_CORES[i>=0?i%MAPA_CORES.length:0];
+}
 function renderMapa(){
   var db=DB.fazendas[FAZ_ATUAL]||{};
   var pqs=(db.piquetes||[]).filter(function(p){return !p._del;});
   var pins=db.mapa_pins||[];
   var fotoBase=db.mapa_foto||'';
+  var aloc=db.mapa_aloc||{};
+  var lotes=db.lotes||[];
+  // contar animais por lote (matrizes + bezerros + recria + touros)
+  var animPorLote={};
+  lotes.forEach(function(l){animPorLote[l]=0;});
+  ['matrizes','bezerros','touros'].forEach(function(mod){
+    (db[mod]||[]).filter(function(r){return !r._del;}).forEach(function(r){
+      if(r.lote&&animPorLote[r.lote]!==undefined) animPorLote[r.lote]++;
+      else if(r.lote) animPorLote[r.lote]=(animPorLote[r.lote]||0)+1;
+    });
+  });
+  (db.recria||[]).filter(function(r){return !r._del;}).forEach(function(r){
+    if(r.lote) animPorLote[r.lote]=(animPorLote[r.lote]||0)+(parseInt(r.qtd)||0);
+  });
   var h='<div class="pg-tt">Mapa da Fazenda</div><div class="pg-sub">'+FAZ_ATUAL+' — foto + pinos de piquetes</div>';
   // Upload de foto
   h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Foto do mapa</div>';
   if(fotoBase){
     h+='<div style="position:relative;display:inline-block;width:100%;cursor:crosshair" id="mapa-wrap">'
-      +'<img id="mapa-img" src="'+fotoBase+'" style="width:100%;border-radius:10px;display:block" onclick="mapaClique(event)">'
-      +'<svg id="mapa-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 100 100" preserveAspectRatio="none">';
-    pins.forEach(function(p,i){
-      h+='<circle cx="'+p.x+'" cy="'+p.y+'" r="2.5" fill="'+(p.situacao==='Ativo'?'#2E7D32':'#c62828')+'" stroke="#fff" stroke-width="0.8"/>'
-        +'<text x="'+(p.x+3)+'" y="'+(p.y+1)+'" font-size="4" fill="#1B5E20" font-weight="bold">'+p.nome+'</text>';
+      +'<img id="mapa-img" src="'+fotoBase+'" style="width:100%;border-radius:10px;display:block" onclick="mapaClique(event)">';
+    // SVG com pinos pequenos (círculo + borda) usando % nativos
+    h+='<svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible">';
+    pins.forEach(function(p){
+      var cor=mapaCorMod(p.modulo||'');
+      h+='<circle cx="'+p.x+'%" cy="'+p.y+'%" r="6" fill="'+cor+'" stroke="#fff" stroke-width="2"/>';
     });
-    h+='</svg></div>';
-    h+='<div style="font-size:12px;color:var(--mut);margin-top:6px">Clique na foto para marcar um piquete.</div>';
-    h+='<button onclick="mapaLimparPins()" style="margin-top:8px;background:none;border:1px solid #c62828;color:#c62828;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Limpar todos os pinos</button> ';
-    h+='<button onclick="document.getElementById(\'mapa-up\').click()" style="margin-top:8px;background:none;border:1px solid var(--v2);color:var(--v2);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Trocar foto</button>';
+    h+='</svg>';
+    // Cards compactos sobre cada pino
+    pins.forEach(function(p){
+      var cor=mapaCorMod(p.modulo||'');
+      var loteAloc=aloc[p.nome]||'';
+      var qtdAnim=loteAloc?(animPorLote[loteAloc]||0):0;
+      h+='<div style="position:absolute;left:'+p.x+'%;top:'+p.y+'%;transform:translate(-50%,-140%);'
+        +'background:'+cor+';color:#fff;border-radius:5px;padding:2px 6px;'
+        +'min-width:36px;text-align:center;white-space:nowrap;'
+        +'box-shadow:0 2px 4px rgba(0,0,0,.4);pointer-events:none;z-index:10;line-height:1.3;">'
+        +(qtdAnim?'<div style="font-size:13px;font-weight:900">'+qtdAnim+'</div>':'')
+        +'<div style="font-size:8px;font-weight:700">'+p.nome+'</div>'
+        +(loteAloc?'<div style="font-size:7px;opacity:.9">'+loteAloc+'</div>':'')
+        +'</div>';
+    });
+    h+='</div>';
+    h+='<div style="font-size:12px;color:var(--mut);margin-top:6px">Clique na foto para adicionar um piquete.</div>';
+    h+='<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">'
+      +'<button onclick="document.getElementById(\'mapa-up\').click()" style="background:none;border:1px solid var(--v2);color:var(--v2);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Trocar foto</button>'
+      +'<button onclick="mapaLimparPins()" style="background:none;border:1px solid #c62828;color:#c62828;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Limpar pinos</button>'
+      +'</div>';
+    // Legenda de módulos
+    var mods=[...new Set(pins.filter(function(p){return p.modulo;}).map(function(p){return p.modulo;}))].sort();
+    if(mods.length){
+      h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">';
+      mods.forEach(function(m){
+        h+='<div style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700">'
+          +'<div style="width:12px;height:12px;border-radius:3px;background:'+mapaCorMod(m)+'"></div>Módulo '+m+'</div>';
+      });
+      h+='</div>';
+    }
   } else {
     h+='<div style="background:#f5faf5;border:2px dashed #c5e0c5;border-radius:12px;padding:30px;text-align:center;color:var(--mut)">'
       +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
@@ -902,24 +952,27 @@ function renderMapa(){
   }
   h+='<input type="file" id="mapa-up" accept="image/*" style="display:none" onchange="mapaUpload(event)">';
   h+='</div>';
-  // Pinos cadastrados
+  // Lista de pinos
   if(pins.length){
     h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Piquetes marcados ('+pins.length+')</div>';
     pins.forEach(function(p,i){
-      h+='<div class="lista-item"><div class="av" style="background:'+(p.situacao==='Ativo'?'#2E7D32':'#c62828')+'">'+p.nome.charAt(0)+'</div>'
-        +'<div><div class="li-n">'+p.nome+'</div><div class="li-s">'+p.situacao+' · x:'+Math.round(p.x)+'% y:'+Math.round(p.y)+'%</div></div>'
+      var cor=mapaCorMod(p.modulo||'');
+      var loteAloc=aloc[p.nome]||'—';
+      h+='<div class="lista-item"><div class="av" style="background:'+cor+'">'+p.nome.charAt(0)+'</div>'
+        +'<div><div class="li-n">'+p.nome+(p.modulo?' · Mód. '+p.modulo:'')+'</div>'
+        +'<div class="li-s">'+p.situacao+' · Lote: '+loteAloc+'</div></div>'
         +'<button class="li-x" onclick="mapaDelPin('+i+')">Remover</button></div>';
     });
     h+='</div>';
   }
-  // Alocação de lotes nos piquetes
-  var lotes=db.lotes||[];
-  var aloc=db.mapa_aloc||{};
+  // Alocação
   if(pqs.length&&lotes.length){
     h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Alocação de lotes</div>';
     h+='<div style="font-size:13px;color:var(--mut);margin-bottom:10px">Qual lote está em qual piquete agora</div>';
     pqs.forEach(function(p){
+      var cor=mapaCorMod(p.modulo||'');
       h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        +'<div style="width:10px;height:10px;border-radius:50%;background:'+cor+'"></div>'
         +'<div style="min-width:80px;font-weight:700;font-size:13px;color:var(--v1)">'+p.nome+'</div>'
         +'<select onchange="mapaAloc(\''+p.nome.replace(/'/g,"\\'")+'\',this.value)" style="flex:1;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:13px">'
         +'<option value="">— sem lote —</option>'
@@ -945,18 +998,17 @@ function mapaClique(evt){
   var rect=img.getBoundingClientRect();
   var x=((evt.clientX-rect.left)/rect.width*100).toFixed(1);
   var y=((evt.clientY-rect.top)/rect.height*100).toFixed(1);
-  // escolher nome e status do piquete
   var db=DB.fazendas[FAZ_ATUAL]||{};
-  var pqs=(db.piquetes||[]).filter(function(p){return !p._del;});
-  var opts=pqs.length?pqs.map(function(p){return p.nome;}).join('\n'):'';
-  var nome=prompt('Nome do piquete neste ponto:'+(opts?'\n(Cadastrados: '+opts+')':''));
+  var nome=prompt('Nome do piquete neste ponto:\n(Ex.: P1, Piquete 01, Módulo 1 - P3)');
   if(!nome||!nome.trim()) return;
   nome=nome.trim();
-  var sit=confirm('Piquete ATIVO? (OK=Ativo / Cancelar=Descansando)')?'Ativo':'Descansando';
+  var modulo=prompt('Número do módulo (deixe vazio se não usar módulos):');
+  modulo=(modulo||'').trim();
+  var sit=confirm('Piquete ATIVO agora? (OK=Ativo / Cancelar=Descansando)')?'Ativo':'Descansando';
   if(!db.mapa_pins) db.mapa_pins=[];
-  db.mapa_pins.push({nome:nome,x:parseFloat(x),y:parseFloat(y),situacao:sit});
+  db.mapa_pins.push({nome:nome,modulo:modulo,x:parseFloat(x),y:parseFloat(y),situacao:sit});
   salvarDB();
-  nuvem({action:'mapa_pin',faz:FAZ_ATUAL,nome:nome,x:x,y:y,situacao:sit});
+  nuvem({action:'mapa_pin',faz:FAZ_ATUAL,nome:nome,modulo:modulo,x:x,y:y,situacao:sit});
   navGestao('mapa');
 }
 function mapaDelPin(i){
@@ -973,6 +1025,7 @@ function mapaAloc(piquete,lote){
   else delete DB.fazendas[FAZ_ATUAL].mapa_aloc[piquete];
   salvarDB();
   nuvem({action:'mapa_aloc',faz:FAZ_ATUAL,piquete:piquete,lote:lote});
+  navGestao('mapa');
 }
 
 /* ---- USUÁRIOS E FAZENDAS (funcional na base) ---- */
