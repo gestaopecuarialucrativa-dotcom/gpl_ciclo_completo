@@ -888,6 +888,7 @@ function renderMapa(){
   var fotoBase=db.mapa_foto||'';
   var aloc=db.mapa_aloc||{};
   var lotes=db.lotes||[];
+  var modoEditor=db.mapa_editor||false;
   // contar animais por lote
   var animPorLote={};
   lotes.forEach(function(l){animPorLote[l]=0;});
@@ -899,52 +900,92 @@ function renderMapa(){
   (db.recria||[]).filter(function(r){return !r._del;}).forEach(function(r){
     if(r.lote) animPorLote[r.lote]=(animPorLote[r.lote]||0)+(parseInt(r.qtd)||0);
   });
-  var h='<div class="pg-tt">Mapa da Fazenda</div>'
-    +'<div class="pg-sub">'+FAZ_ATUAL+' — clique na foto para marcar piquetes</div>';
-  // Foto + pins
+  var totalAnim=Object.values(animPorLote).reduce(function(s,v){return s+v;},0);
+  var pinsCom=pins.filter(function(p){return aloc[p.nome];});
+  var h='<div class="pg-tt">Mapa da Fazenda</div>';
+  // Cabeçalho de resumo
+  h+='<div style="display:flex;gap:12px;margin-bottom:10px">'
+    +'<div style="background:var(--card);border-radius:10px;border-left:4px solid var(--v1);padding:8px 14px;flex:1;text-align:center">'
+    +'<div style="font-size:20px;font-weight:900;color:var(--v1)">'+totalAnim+'</div>'
+    +'<div style="font-size:10px;color:var(--mut)">Animais</div></div>'
+    +'<div style="background:var(--card);border-radius:10px;border-left:4px solid #1565C0;padding:8px 14px;flex:1;text-align:center">'
+    +'<div style="font-size:20px;font-weight:900;color:#1565C0">'+pinsCom.length+'</div>'
+    +'<div style="font-size:10px;color:var(--mut)">Lotes no campo</div></div>'
+    +'<div style="background:var(--card);border-radius:10px;border-left:4px solid #6A1B9A;padding:8px 14px;flex:1;text-align:center">'
+    +'<div style="font-size:20px;font-weight:900;color:#6A1B9A">'+pins.length+'</div>'
+    +'<div style="font-size:10px;color:var(--mut)">Piquetes</div></div>'
+    +'</div>';
   h+='<div class="card" style="padding:12px">';
   if(fotoBase){
-    // wrapper com position:relative e display:block para conter os cards
-    h+='<div id="mapa-wrap" style="position:relative;display:block;line-height:0;border-radius:10px;overflow:hidden;cursor:crosshair">'
-      +'<img id="mapa-img" src="'+fotoBase+'" style="width:100%;display:block;border-radius:10px" onclick="mapaClique(event)">';
-    // Cards posicionados — apenas HTML, sem SVG
-    pins.forEach(function(p){
+    // Botões de controle
+    h+='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'
+      +(modoEditor
+        ?'<button onclick="mapaSetEditor(false)" style="background:var(--v1);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Concluir edição</button>'
+        +'<button onclick="document.getElementById(\'mapa-up\').click()" style="background:none;border:1px solid var(--v2);color:var(--v2);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Trocar foto</button>'
+        +'<button onclick="mapaLimparPins()" style="background:none;border:1px solid #c62828;color:#c62828;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Limpar pinos</button>'
+        :'<button onclick="mapaSetEditor(true)" style="background:#FF6F00;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Editor</button>'
+        +'<button onclick="mapaAlocar()" style="background:var(--v1);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Alocar</button>'
+      )
+      +'</div>';
+    // Foto com cards
+    h+='<div id="mapa-wrap" style="position:relative;display:block;line-height:0;border-radius:10px;overflow:hidden;'
+      +(modoEditor?'cursor:crosshair;':'cursor:default;')+'">'
+      +'<img id="mapa-img" src="'+fotoBase+'" style="width:100%;max-height:400px;object-fit:contain;display:block;border-radius:10px"'
+      +(modoEditor?' onclick="mapaClique(event)"':'')+' >';
+    // Cards: no modo normal só mostra onde tem lote; no editor mostra todos
+    var pinsVisiveis=modoEditor?pins:pins.filter(function(p){return aloc[p.nome];});
+    pinsVisiveis.forEach(function(p){
       var cor=mapaCorMod(p.modulo||'');
       var loteAloc=aloc[p.nome]||'';
       var qtdAnim=loteAloc?(animPorLote[loteAloc]||0):0;
-      var nomeLote=loteAloc||'';
-      // card com sombra, número grande, nome do lote e nome do piquete
-      h+='<div onclick="mapaEditPin(\''+p.nome.replace(/'/g,"\\'")+'\')" style="'
-        +'position:absolute;left:'+p.x+'%;top:'+p.y+'%;'
-        +'transform:translate(-50%,-50%);'
-        +'background:'+cor+';color:#fff;'
-        +'border-radius:10px;padding:5px 10px;'
-        +'min-width:54px;text-align:center;'
-        +'box-shadow:0 3px 8px rgba(0,0,0,.5);'
-        +'cursor:pointer;z-index:20;line-height:1.2;'
-        +'border:2px solid rgba(255,255,255,.5);">'
-        +(qtdAnim?'<div style="font-size:22px;font-weight:900;line-height:1">'+qtdAnim+'</div>':'<div style="font-size:16px;font-weight:900;line-height:1">—</div>')
-        +(nomeLote?'<div style="font-size:9px;font-weight:700;opacity:.9">'+nomeLote+'</div>':'')
-        +'<div style="font-size:8px;opacity:.75;margin-top:1px">'+p.nome+'</div>'
-        +'</div>';
+      if(modoEditor){
+        // No editor: card pequeno cinza com nome do piquete
+        h+='<div onclick="mapaDelPin2(\''+p.nome.replace(/'/g,"\\'")+'\',event)" style="'
+          +'position:absolute;left:'+p.x+'%;top:'+p.y+'%;'
+          +'transform:translate(-50%,-50%);'
+          +'background:'+cor+';color:#fff;'
+          +'border-radius:8px;padding:3px 8px;'
+          +'font-size:9px;font-weight:700;text-align:center;'
+          +'box-shadow:0 2px 4px rgba(0,0,0,.5);'
+          +'cursor:pointer;z-index:20;line-height:1.4;'
+          +'border:1.5px solid rgba(255,255,255,.5);">'
+          +p.nome+(p.modulo?'<br><span style="opacity:.75;font-size:8px">M'+p.modulo+'</span>':'')
+          +'</div>';
+      } else {
+        // Modo normal: card grande com animais
+        h+='<div style="'
+          +'position:absolute;left:'+p.x+'%;top:'+p.y+'%;'
+          +'transform:translate(-50%,-50%);'
+          +'background:'+cor+';color:#fff;'
+          +'border-radius:10px;padding:4px 10px;'
+          +'min-width:52px;text-align:center;'
+          +'box-shadow:0 3px 8px rgba(0,0,0,.5);'
+          +'z-index:20;line-height:1.2;'
+          +'border:2px solid rgba(255,255,255,.4);">'
+          +(qtdAnim?'<div style="font-size:20px;font-weight:900;line-height:1">'+qtdAnim+'</div>':'')
+          +'<div style="font-size:9px;font-weight:700;opacity:.9">'+loteAloc+'</div>'
+          +'<div style="font-size:8px;opacity:.65">'+p.nome+'</div>'
+          +'</div>';
+      }
     });
     h+='</div>'; // fecha mapa-wrap
-    // Controles abaixo da foto
-    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
-      +'<button onclick="document.getElementById(\'mapa-up\').click()" style="background:none;border:1px solid var(--v2);color:var(--v2);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Trocar foto</button>'
-      +'<button onclick="mapaLimparPins()" style="background:none;border:1px solid #c62828;color:#c62828;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Limpar pinos</button>'
-      +'</div>';
-    // Legenda de módulos
-    var mods=[...new Set(pins.filter(function(p){return p.modulo;}).map(function(p){return p.modulo;}))].sort();
-    if(mods.length){
-      h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">';
-      mods.forEach(function(m){
-        h+='<div style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--v1)">'
-          +'<div style="width:14px;height:14px;border-radius:4px;background:'+mapaCorMod(m)+'"></div>Módulo '+m+'</div>';
-      });
-      h+='</div>';
+    // Legenda módulos (editor)
+    if(modoEditor){
+      var mods=[...new Set(pins.filter(function(p){return p.modulo;}).map(function(p){return p.modulo;}))].sort();
+      if(mods.length){
+        h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">';
+        mods.forEach(function(m){
+          h+='<div style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700">'
+            +'<div style="width:12px;height:12px;border-radius:3px;background:'+mapaCorMod(m)+'"></div>Módulo '+m+'</div>';
+        });
+        h+='</div>';
+      }
+      h+='<div style="font-size:11px;color:var(--mut);margin-top:8px">Clique na foto para adicionar piquete. Clique no card para remover.</div>';
+    } else {
+      if(!pinsCom.length){
+        h+='<div style="text-align:center;font-size:12px;color:var(--mut);margin-top:8px">Nenhum lote alocado. Toque em <b>+ Alocar</b> para alocar um lote a um piquete.</div>';
+      }
     }
-    h+='<div style="font-size:11px;color:var(--mut);margin-top:8px">Clique na foto para adicionar piquete. Clique no card para editar.</div>';
   } else {
     h+='<div style="background:#f5faf5;border:2px dashed #c5e0c5;border-radius:12px;padding:30px;text-align:center;color:var(--mut)">'
       +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
@@ -955,31 +996,16 @@ function renderMapa(){
   }
   h+='<input type="file" id="mapa-up" accept="image/*" style="display:none" onchange="mapaUpload(event)">';
   h+='</div>'; // fecha card
-  // Lista de pinos
-  if(pins.length){
-    h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Piquetes marcados ('+pins.length+')</div>';
-    pins.forEach(function(p,i){
-      var cor=mapaCorMod(p.modulo||'');
-      var loteAloc=aloc[p.nome]||'—';
-      var qtd=aloc[p.nome]?(animPorLote[aloc[p.nome]]||0):0;
-      h+='<div class="lista-item">'
-        +'<div class="av" style="background:'+cor+';font-size:11px;font-weight:900">'+(qtd||'·')+'</div>'
-        +'<div style="flex:1"><div class="li-n">'+p.nome+(p.modulo?' · Módulo '+p.modulo:'')+'</div>'
-        +'<div class="li-s">'+p.situacao+' · Lote: '+loteAloc+'</div></div>'
-        +'<button class="li-x" onclick="mapaDelPin('+i+')">Remover</button></div>';
-    });
-    h+='</div>';
-  }
-  // Alocação de lotes
-  if(pqs.length&&lotes.length){
+  // Alocação (sempre visível)
+  if(pins.length&&lotes.length){
     h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:4px">Alocação de lotes</div>'
       +'<div style="font-size:12px;color:var(--mut);margin-bottom:10px">Qual lote está em qual piquete agora</div>';
-    pqs.forEach(function(p){
+    pins.forEach(function(p){
       var cor=mapaCorMod(p.modulo||'');
       h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
         +'<div style="width:10px;height:10px;border-radius:50%;background:'+cor+';flex-shrink:0"></div>'
-        +'<div style="min-width:90px;font-weight:700;font-size:13px">'+p.nome+'</div>'
-        +'<select onchange="mapaAloc(\''+p.nome.replace(/'/g,"\\'")+'\',this.value)" style="flex:1;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:13px">'
+        +'<div style="min-width:80px;font-weight:700;font-size:12px">'+p.nome+'</div>'
+        +'<select onchange="mapaAloc(\''+p.nome.replace(/'/g,"\\'")+'\',this.value)" style="flex:1;padding:6px;border:1px solid var(--line);border-radius:8px;font-size:12px">'
         +'<option value="">— sem lote —</option>'
         +lotes.map(function(l){return '<option'+(aloc[p.nome]===l?' selected':'')+'>'+l+'</option>';}).join('')
         +'</select></div>';
@@ -988,12 +1014,20 @@ function renderMapa(){
   }
   return h;
 }
-function mapaEditPin(nome){
-  var db=DB.fazendas[FAZ_ATUAL]||{};
-  var pin=(db.mapa_pins||[]).find(function(p){return p.nome===nome;});
-  if(!pin) return;
-  var sit=confirm('Piquete "'+nome+'" está ATIVO? (OK=Ativo / Cancelar=Descansando)')?'Ativo':'Descansando';
-  pin.situacao=sit; salvarDB(); navGestao('mapa');
+function mapaSetEditor(on){
+  if(!DB.fazendas[FAZ_ATUAL]) return;
+  DB.fazendas[FAZ_ATUAL].mapa_editor=on; salvarDB(); navGestao('mapa');
+}
+function mapaAlocar(){
+  navGestao('mapa'); // já mostra a tabela de alocação abaixo
+  setTimeout(function(){ var el=document.querySelector('#conteudo .card:last-child'); if(el) el.scrollIntoView({behavior:'smooth'}); },200);
+}
+function mapaDelPin2(nome,evt){
+  evt.stopPropagation();
+  if(!confirm('Remover pino "'+nome+'"?')) return;
+  var db=DB.fazendas[FAZ_ATUAL]; if(!db||!db.mapa_pins) return;
+  db.mapa_pins=db.mapa_pins.filter(function(p){return p.nome!==nome;});
+  salvarDB(); navGestao('mapa');
 }
 
 function mapaUpload(evt){
