@@ -888,92 +888,97 @@ function renderMapa(){
   var fotoBase=db.mapa_foto||'';
   var aloc=db.mapa_aloc||{};
   var lotes=db.lotes||[];
-  // contar animais por lote (matrizes + bezerros + recria + touros)
+  // contar animais por lote
   var animPorLote={};
   lotes.forEach(function(l){animPorLote[l]=0;});
   ['matrizes','bezerros','touros'].forEach(function(mod){
     (db[mod]||[]).filter(function(r){return !r._del;}).forEach(function(r){
-      if(r.lote&&animPorLote[r.lote]!==undefined) animPorLote[r.lote]++;
-      else if(r.lote) animPorLote[r.lote]=(animPorLote[r.lote]||0)+1;
+      if(r.lote) animPorLote[r.lote]=(animPorLote[r.lote]||0)+1;
     });
   });
   (db.recria||[]).filter(function(r){return !r._del;}).forEach(function(r){
     if(r.lote) animPorLote[r.lote]=(animPorLote[r.lote]||0)+(parseInt(r.qtd)||0);
   });
-  var h='<div class="pg-tt">Mapa da Fazenda</div><div class="pg-sub">'+FAZ_ATUAL+' — foto + pinos de piquetes</div>';
-  // Upload de foto
-  h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Foto do mapa</div>';
+  var h='<div class="pg-tt">Mapa da Fazenda</div>'
+    +'<div class="pg-sub">'+FAZ_ATUAL+' — clique na foto para marcar piquetes</div>';
+  // Foto + pins
+  h+='<div class="card" style="padding:12px">';
   if(fotoBase){
-    h+='<div style="position:relative;display:inline-block;width:100%;cursor:crosshair" id="mapa-wrap">'
-      +'<img id="mapa-img" src="'+fotoBase+'" style="width:100%;border-radius:10px;display:block" onclick="mapaClique(event)">';
-    // SVG com pinos pequenos (círculo + borda) usando % nativos
-    h+='<svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible">';
-    pins.forEach(function(p){
-      var cor=mapaCorMod(p.modulo||'');
-      h+='<circle cx="'+p.x+'%" cy="'+p.y+'%" r="6" fill="'+cor+'" stroke="#fff" stroke-width="2"/>';
-    });
-    h+='</svg>';
-    // Cards compactos sobre cada pino
+    // wrapper com position:relative e display:block para conter os cards
+    h+='<div id="mapa-wrap" style="position:relative;display:block;line-height:0;border-radius:10px;overflow:hidden;cursor:crosshair">'
+      +'<img id="mapa-img" src="'+fotoBase+'" style="width:100%;display:block;border-radius:10px" onclick="mapaClique(event)">';
+    // Cards posicionados — apenas HTML, sem SVG
     pins.forEach(function(p){
       var cor=mapaCorMod(p.modulo||'');
       var loteAloc=aloc[p.nome]||'';
       var qtdAnim=loteAloc?(animPorLote[loteAloc]||0):0;
-      h+='<div style="position:absolute;left:'+p.x+'%;top:'+p.y+'%;transform:translate(-50%,-140%);'
-        +'background:'+cor+';color:#fff;border-radius:5px;padding:2px 6px;'
-        +'min-width:36px;text-align:center;white-space:nowrap;'
-        +'box-shadow:0 2px 4px rgba(0,0,0,.4);pointer-events:none;z-index:10;line-height:1.3;">'
-        +(qtdAnim?'<div style="font-size:13px;font-weight:900">'+qtdAnim+'</div>':'')
-        +'<div style="font-size:8px;font-weight:700">'+p.nome+'</div>'
-        +(loteAloc?'<div style="font-size:7px;opacity:.9">'+loteAloc+'</div>':'')
+      var nomeLote=loteAloc||'';
+      // card com sombra, número grande, nome do lote e nome do piquete
+      h+='<div onclick="mapaEditPin(\''+p.nome.replace(/'/g,"\\'")+'\')" style="'
+        +'position:absolute;left:'+p.x+'%;top:'+p.y+'%;'
+        +'transform:translate(-50%,-50%);'
+        +'background:'+cor+';color:#fff;'
+        +'border-radius:10px;padding:5px 10px;'
+        +'min-width:54px;text-align:center;'
+        +'box-shadow:0 3px 8px rgba(0,0,0,.5);'
+        +'cursor:pointer;z-index:20;line-height:1.2;'
+        +'border:2px solid rgba(255,255,255,.5);">'
+        +(qtdAnim?'<div style="font-size:22px;font-weight:900;line-height:1">'+qtdAnim+'</div>':'<div style="font-size:16px;font-weight:900;line-height:1">—</div>')
+        +(nomeLote?'<div style="font-size:9px;font-weight:700;opacity:.9">'+nomeLote+'</div>':'')
+        +'<div style="font-size:8px;opacity:.75;margin-top:1px">'+p.nome+'</div>'
         +'</div>';
     });
-    h+='</div>';
-    h+='<div style="font-size:12px;color:var(--mut);margin-top:6px">Clique na foto para adicionar um piquete.</div>';
-    h+='<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">'
+    h+='</div>'; // fecha mapa-wrap
+    // Controles abaixo da foto
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
       +'<button onclick="document.getElementById(\'mapa-up\').click()" style="background:none;border:1px solid var(--v2);color:var(--v2);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Trocar foto</button>'
       +'<button onclick="mapaLimparPins()" style="background:none;border:1px solid #c62828;color:#c62828;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Limpar pinos</button>'
       +'</div>';
     // Legenda de módulos
     var mods=[...new Set(pins.filter(function(p){return p.modulo;}).map(function(p){return p.modulo;}))].sort();
     if(mods.length){
-      h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">';
+      h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">';
       mods.forEach(function(m){
-        h+='<div style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700">'
-          +'<div style="width:12px;height:12px;border-radius:3px;background:'+mapaCorMod(m)+'"></div>Módulo '+m+'</div>';
+        h+='<div style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--v1)">'
+          +'<div style="width:14px;height:14px;border-radius:4px;background:'+mapaCorMod(m)+'"></div>Módulo '+m+'</div>';
       });
       h+='</div>';
     }
+    h+='<div style="font-size:11px;color:var(--mut);margin-top:8px">Clique na foto para adicionar piquete. Clique no card para editar.</div>';
   } else {
     h+='<div style="background:#f5faf5;border:2px dashed #c5e0c5;border-radius:12px;padding:30px;text-align:center;color:var(--mut)">'
       +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--v3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
       +'<div style="font-weight:700;color:var(--v1);margin:8px 0 4px">Nenhuma foto carregada</div>'
-      +'<div style="font-size:13px;margin-bottom:12px">Faça o upload de uma foto aérea ou croqui da fazenda</div>'
-      +'<button onclick="document.getElementById(\'mapa-up\').click()" class="btn" style="width:auto;padding:10px 24px">Carregar foto</button></div>';
+      +'<div style="font-size:13px;margin-bottom:12px">Upload de foto aérea ou croqui da fazenda</div>'
+      +'<button onclick="document.getElementById(\'mapa-up\').click()" class="btn" style="width:auto;padding:10px 24px">Carregar foto</button>'
+      +'</div>';
   }
   h+='<input type="file" id="mapa-up" accept="image/*" style="display:none" onchange="mapaUpload(event)">';
-  h+='</div>';
+  h+='</div>'; // fecha card
   // Lista de pinos
   if(pins.length){
     h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Piquetes marcados ('+pins.length+')</div>';
     pins.forEach(function(p,i){
       var cor=mapaCorMod(p.modulo||'');
       var loteAloc=aloc[p.nome]||'—';
-      h+='<div class="lista-item"><div class="av" style="background:'+cor+'">'+p.nome.charAt(0)+'</div>'
-        +'<div><div class="li-n">'+p.nome+(p.modulo?' · Mód. '+p.modulo:'')+'</div>'
+      var qtd=aloc[p.nome]?(animPorLote[aloc[p.nome]]||0):0;
+      h+='<div class="lista-item">'
+        +'<div class="av" style="background:'+cor+';font-size:11px;font-weight:900">'+(qtd||'·')+'</div>'
+        +'<div style="flex:1"><div class="li-n">'+p.nome+(p.modulo?' · Módulo '+p.modulo:'')+'</div>'
         +'<div class="li-s">'+p.situacao+' · Lote: '+loteAloc+'</div></div>'
         +'<button class="li-x" onclick="mapaDelPin('+i+')">Remover</button></div>';
     });
     h+='</div>';
   }
-  // Alocação
+  // Alocação de lotes
   if(pqs.length&&lotes.length){
-    h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:8px">Alocação de lotes</div>';
-    h+='<div style="font-size:13px;color:var(--mut);margin-bottom:10px">Qual lote está em qual piquete agora</div>';
+    h+='<div class="card"><div style="font-weight:800;color:var(--v1);margin-bottom:4px">Alocação de lotes</div>'
+      +'<div style="font-size:12px;color:var(--mut);margin-bottom:10px">Qual lote está em qual piquete agora</div>';
     pqs.forEach(function(p){
       var cor=mapaCorMod(p.modulo||'');
       h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
-        +'<div style="width:10px;height:10px;border-radius:50%;background:'+cor+'"></div>'
-        +'<div style="min-width:80px;font-weight:700;font-size:13px;color:var(--v1)">'+p.nome+'</div>'
+        +'<div style="width:10px;height:10px;border-radius:50%;background:'+cor+';flex-shrink:0"></div>'
+        +'<div style="min-width:90px;font-weight:700;font-size:13px">'+p.nome+'</div>'
         +'<select onchange="mapaAloc(\''+p.nome.replace(/'/g,"\\'")+'\',this.value)" style="flex:1;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:13px">'
         +'<option value="">— sem lote —</option>'
         +lotes.map(function(l){return '<option'+(aloc[p.nome]===l?' selected':'')+'>'+l+'</option>';}).join('')
@@ -983,6 +988,14 @@ function renderMapa(){
   }
   return h;
 }
+function mapaEditPin(nome){
+  var db=DB.fazendas[FAZ_ATUAL]||{};
+  var pin=(db.mapa_pins||[]).find(function(p){return p.nome===nome;});
+  if(!pin) return;
+  var sit=confirm('Piquete "'+nome+'" está ATIVO? (OK=Ativo / Cancelar=Descansando)')?'Ativo':'Descansando';
+  pin.situacao=sit; salvarDB(); navGestao('mapa');
+}
+
 function mapaUpload(evt){
   var file=evt.target.files[0]; if(!file) return;
   var reader=new FileReader();
